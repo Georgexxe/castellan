@@ -1,0 +1,22 @@
+# Castellan — per-agent Band credentials. Copy to `agent_config.yaml` and fill in.
+# `agent_config.yaml` is gitignored; only this .example file is committed.
+#
+# Each agent is registered manually in the Band dashboard as an External Agent.
+# Registration yields a UUID (agent_id) and an API key (shown ONCE — copy it then).
+# The SDK's load_agent_config("scanner") reads ./agent_config.yaml from the working
+# directory, so run agents from the repo root (cd castellan).
+
+scanner:
+  agent_id: ""   # Scanner agent UUID from Band
+  api_key: ""    # Scanner agent API key from Band
+
+# --- Needed LATER (not for M0); register when you reach that milestone ---
+# controller:
+#   agent_id: ""
+#   api_key: ""
+# data_specialist:
+#   agent_id: ""
+#   api_key: ""
+# risk_policy:
+#   agent_id: ""
+#   api_key: ""

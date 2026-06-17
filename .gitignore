@@ -1,0 +1,14 @@
+# Secrets — NEVER commit. Only the .example variants are tracked.
+.env
+agent_config.yaml
+
+# Python / uv
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.python-version
+
+# OS / editor
+.DS_Store
+Thumbs.db
