@@ -100,18 +100,46 @@ adapter = LangGraphAdapter(
 - A custom tool can read the room id from its injected `RunnableConfig` (`configurable.thread_id`
   == room_id), which is how `cloud_scan_and_emit_findings` posts to the right room.
 
-### Controller — `PydanticAIAdapter` + Anthropic model (NOT AI/ML API — see §8)
-```python
-from band.adapters import PydanticAIAdapter
+### Controller — `LangGraphAdapter` + ChatAnthropic (AS BUILT — NOT Pydantic-AI)
+> **AS BUILT (M2) — the Controller runs on LangGraph + ChatAnthropic, not Pydantic-AI.**
+> - **Why not Pydantic-AI:** `crewai` ⊥ `pydantic-ai` in one environment — Band's own README:
+>   *crewai pins `pydantic<2.12`, pydantic-ai-slim ≥1.61 needs `pydantic≥2.12`; install one per
+>   environment.* Installing both extras held `pydantic-ai` at 1.60, which then fails importing
+>   `UserLocation` from `anthropic 0.109` (renamed `BetaUserLocationParam`). pydantic-ai was the
+>   ONLY framework breaking the shared venv, and the Controller's reasoning is deterministic
+>   (`coordination/board.py`) — the LLM merely triggers a tool — so it needs no pydantic-ai
+>   feature. Dropping it keeps every agent (Controller, Risk=Anthropic adapter, Specialists=CrewAI,
+>   Featherless Evidence Analyst) in one coherent venv. Still cross-framework: LangGraph + CrewAI
+>   + Anthropic, multiple providers.
+> - **Model:** `claude-sonnet-4-6` (ChatAnthropic id — NO `anthropic:` prefix, that's pydantic-ai
+>   format). Current June 2026; the retired `claude-3-5-sonnet-*` would fail. Env-overridable via
+>   **`CONTROLLER_MODEL`**, read after `load_dotenv()`.
+> - **Routing is deterministic.** The only custom tool, `controller_route`
+>   (`connection/controller_tool.py`), gets `room_id` from the LangGraph run config
+>   (`config.configurable.thread_id` — the M1 pattern; LangGraph custom tools do NOT get the
+>   room-bound AgentTools), then posts AS the Controller via the REST client
+>   (`agent_api_context.get_agent_chat_context` → parse Scanner findings via `coordination/board.py`
+>   → key cases by `(cls,resource)` → dedup via stable `[case_id:<sha256[:8]>]` marker under a
+>   per-room `asyncio.Lock` → `create_agent_chat_message` @mentioning the specialist resolved from
+>   the participants endpoint). The LLM authors no JSON, mentions, or routing.
+> - **§8 bug:** avoided — Anthropic path only (no OpenAI), single-tool trigger.
 
-adapter = PydanticAIAdapter(
-    model="anthropic:claude-sonnet-4-5-20250929",   # Anthropic model dodges the §8 bug
-    custom_section="<controller instructions; see AGENTS.md §2.2>",
-    enable_execution_reporting=True,                 # surfaces tool_call/tool_result (good for demo)
+```python
+from band.adapters import LangGraphAdapter
+from langchain_anthropic import ChatAnthropic
+from langgraph.checkpoint.memory import InMemorySaver
+from connection.controller_tool import CONTROLLER_TOOLS   # = [controller_route]
+
+adapter = LangGraphAdapter(
+    llm=ChatAnthropic(model="claude-sonnet-4-6", api_key=os.getenv("ANTHROPIC_API_KEY")),  # env CONTROLLER_MODEL
+    checkpointer=InMemorySaver(),
+    custom_section="<controller trigger-only instructions; see agents/controller/controller.py>",
+    additional_tools=CONTROLLER_TOOLS,
+    enable_execution_reporting=True,
 )
 ```
-- Needs `ANTHROPIC_API_KEY`. Model string format is `provider:model-name`.
-- The Controller relies on **platform tools** (lookup_peers, add_participant, send_message); it does not need custom tools. If you ever add custom tools to a Pydantic AI agent, confirm the mechanism in the SDK reference (`docs.band.ai/integrations/sdks/reference`) — it isn't shown on the tutorial page.
+- Needs `ANTHROPIC_API_KEY`. (The original Pydantic-AI + `provider:model-name` design is retained
+  below as historical context, but is NOT what's built.)
 
 ### Specialists (IAM / Network / Data) — `CrewAIAdapter` + AI/ML API
 ```python

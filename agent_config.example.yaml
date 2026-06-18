@@ -10,10 +10,11 @@ scanner:
   agent_id: ""   # Scanner agent UUID from Band
   api_key: ""    # Scanner agent API key from Band
 
-# --- Needed LATER (not for M0); register when you reach that milestone ---
-# controller:
-#   agent_id: ""
-#   api_key: ""
+controller:      # M2 — the Controller runs on Anthropic; needs its own Band creds to run
+  agent_id: ""   # Controller agent UUID from Band
+  api_key: ""    # Controller agent API key from Band
+
+# --- Needed LATER; register when you reach that milestone ---
 # data_specialist:
 #   agent_id: ""
 #   api_key: ""
