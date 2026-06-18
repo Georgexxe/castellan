@@ -58,12 +58,22 @@ _GOOD_S3 = {
             }
         },
     },
-    # Restorative AND safe: reverse the fix by removing the public-access-block it added — does
-    # NOT re-add the public Principal:"*" bucket policy (that would re-expose the bucket).
+    # Explicit-restorative rollback (M4): restore the SEEDED BASELINE public-access-block —
+    # put_public_access_block with all four flags FALSE, byte-identical to cloud/seed.py's
+    # _seed_public_bucket. Reversibility asserts all-false (baseline) -> all-true (fix) -> all-false
+    # (rollback), with before == after-rollback. It restores prior state (not a new public grant):
+    # NO Principal:"*" bucket policy is re-added.
     "rollback": {
-        "action": "delete_public_access_block",
+        "action": "put_public_access_block",
         "target": "acme-public-data",
-        "params": {"Bucket": "acme-public-data"},
+        "params": {
+            "PublicAccessBlockConfiguration": {
+                "BlockPublicAcls": False,
+                "IgnorePublicAcls": False,
+                "BlockPublicPolicy": False,
+                "RestrictPublicBuckets": False,
+            }
+        },
     },
     "est_blast_radius": "low",
     "reversible": True,
