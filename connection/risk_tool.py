@@ -34,7 +34,7 @@ from band.client.rest import (
 
 from connection.poster import rest_base_url
 from coordination.board import case_id, case_markers
-from coordination.contributions import latest_proposal, structural_violations
+from coordination.contributions import latest_proposal, proposal_id_marker, structural_violations
 from coordination.models import Constraint
 
 log = logging.getLogger("castellan.risk")
@@ -141,7 +141,9 @@ async def _emit(room_id: str, verdict: str, rule: str, rationale: str, finding_r
     )
 
     ns = _case_ns(case_key)
-    markers = case_markers(ns)  # byte-identical to the Controller (board.case_markers)
+    # Case markers byte-identical to the Controller; proposal_id computed from the SAME validated
+    # ActionSpecs the poster used, so it matches the Contribution's [proposal_id] marker.
+    markers = f"{case_markers(ns)} {proposal_id_marker(case_key, proposal.fix, proposal.rollback)}"
 
     participants = (
         await client.agent_api_participants.list_agent_chat_participants(

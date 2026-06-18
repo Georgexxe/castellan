@@ -39,7 +39,9 @@ from band.client.rest import (
 
 from connection.poster import rest_base_url
 from coordination.board import case_markers
+from coordination.contributions import proposal_id_marker
 from coordination.fixtures import FIXTURES, get_fixture
+from coordination.models import Contribution
 
 RISK_NAME = "Risk Policy"
 
@@ -79,7 +81,11 @@ async def main() -> None:
     mention = ChatMessageRequestMentionsItem(id=_attr(risk, "id"), handle=handle)
 
     ns = SimpleNamespace(cls=fx["cls"], resource=fx["resource"])
-    markers = case_markers(ns)
+    case_key = f"{fx['cls']}:{fx['resource']}"
+    # Validate the fixture, then compute the proposal_id from the VALIDATED ActionSpecs so it
+    # matches Risk's computation byte-for-byte (canonical-JSON contract).
+    contrib = Contribution(**fx["contribution"])
+    markers = f"{case_markers(ns)} {proposal_id_marker(case_key, contrib.fix, contrib.rollback)}"
     body = json.dumps(fx["contribution"], indent=2)
     content = (
         f"{handle} Please evaluate this proposal ({fixture_name}).\n"

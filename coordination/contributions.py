@@ -13,13 +13,15 @@ Pure, deterministic, no Band/SDK imports — unit-testable in isolation. Keeps `
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 
-from coordination.models import Contribution
+from coordination.models import ActionSpec, Contribution
 
 _FENCE_RE = re.compile(r"```(?:json)?\s*\n?(.*?)```", re.DOTALL)
 _CASE_RE = re.compile(r"\[case:([^\]]+)\]")  # captures "cls:resource"
+_PROPOSAL_ID_RE = re.compile(r"\[proposal_id:([0-9a-f]{12})\]")
 
 
 def _content(msg) -> str:
@@ -43,6 +45,46 @@ def _as_list(x) -> list:
 def _case_key_from_content(content: str) -> str | None:
     m = _CASE_RE.search(content or "")
     return m.group(1).strip() if m else None
+
+
+# --- proposal_id: stable content identity of a proposal (M4 Task B) ------------------------------
+# Pinned canonical-JSON contract so the hash is byte-identical wherever it's computed.
+
+def _canonical(obj) -> str:
+    """Canonical JSON: sorted keys, compact separators, ASCII. Identical output everywhere."""
+    return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+
+
+def _norm_action(action) -> dict | None:
+    """Normalize an ActionSpec | dict | None to a plain dict (or None) for canonical hashing."""
+    if action is None:
+        return None
+    if isinstance(action, ActionSpec):
+        return action.model_dump(mode="json")
+    if isinstance(action, dict):
+        return action
+    return action.model_dump(mode="json")  # pydantic-like fallback
+
+
+def proposal_id(case_key: str, fix, rollback) -> str:
+    """Stable 12-hex content id = sha256(case_key + canonical(fix) + canonical(rollback))[:12].
+
+    `fix`/`rollback` are the VALIDATED Contribution's ActionSpec (or None). Producer and consumer
+    must both pass validated ActionSpecs so the canonical input — and thus the hash — matches.
+    """
+    payload = f"{case_key}\n{_canonical(_norm_action(fix))}\n{_canonical(_norm_action(rollback))}"
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:12]
+
+
+def proposal_id_marker(case_key: str, fix, rollback) -> str:
+    """`[proposal_id:<hash>]` marker to embed alongside [case:...] / [case_id:...]."""
+    return f"[proposal_id:{proposal_id(case_key, fix, rollback)}]"
+
+
+def proposal_id_from_content(content: str) -> str | None:
+    """Read the [proposal_id:<hash>] marker from a message, if present."""
+    m = _PROPOSAL_ID_RE.search(content or "")
+    return m.group(1) if m else None
 
 
 def parse_contribution(content: str) -> Contribution | None:

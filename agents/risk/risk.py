@@ -67,6 +67,14 @@ production data without explicit scoping; or lacks a restorative rollback. Appro
 fix is scoped, reversible, and policy-compliant. Be conservative — forcing a revision is better
 than approving an over-broad change. (A deterministic safety floor may also downgrade an approve;
 that is expected.)
+
+FOR IAM PROPOSALS specifically: approve only if the fix demonstrably REMOVES or OVERWRITES the
+offending grant — i.e. it deletes or replaces the *named inline policy* that carries the wildcard
+(e.g. put_role_policy on that same policy name with a scoped document, or delete_role_policy on it).
+Adding a NEW scoped policy ALONGSIDE an existing over-broad one does NOT remove the grant: IAM
+inline policies are a union, so the wildcard policy still applies and effective access is unchanged.
+If the fix only adds a scoped policy without removing/replacing the offending one, reject and ask
+for a fix that removes or overwrites the wildcard policy.
 """
 
 
