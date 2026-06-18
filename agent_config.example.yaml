@@ -14,10 +14,11 @@ controller:      # M2 — the Controller runs on Anthropic; needs its own Band c
   agent_id: ""   # Controller agent UUID from Band
   api_key: ""    # Controller agent API key from Band
 
+risk_policy:     # M3 — the Risk/Policy gate; register "Risk Policy" and add it to the room
+  agent_id: ""   # Risk Policy agent UUID from Band
+  api_key: ""    # Risk Policy agent API key from Band
+
 # --- Needed LATER; register when you reach that milestone ---
 # data_specialist:
-#   agent_id: ""
-#   api_key: ""
-# risk_policy:
 #   agent_id: ""
 #   api_key: ""

@@ -165,19 +165,48 @@ adapter = CrewAIAdapter(
 ```
 - CrewAI custom tools = `(PydanticModel, handler)` tuples; tool **name** comes from the model class name, **description** from its docstring. Handlers may be sync or async.
 
-### Risk / Policy — `AnthropicAdapter` + distinct Claude model
-```python
-from band.adapters import AnthropicAdapter
+### Risk / Policy — `LangGraphAdapter` + ChatAnthropic (AS BUILT — NOT the AnthropicAdapter)
+> **AS BUILT (M3):** Risk runs on **LangGraph + ChatAnthropic**, model **`claude-opus-4-8`**
+> (env `RISK_MODEL`) — a model **distinct** from the Controller's `claude-sonnet-4-6` (the
+> substantive correlated-error reduction on the gate).
+> - **Why not the band `AnthropicAdapter`:** its custom tools are `(PydanticModel, handler)`
+>   tuples whose handler is a **pure function of its input — no room context, cannot post**
+>   (verified in `band/adapters/anthropic.py`). Risk must deliver a Constraint deterministically,
+>   so we use LangGraph, whose custom tool reads `room_id` from `config.configurable.thread_id`
+>   (the M2 pattern) and posts via REST. (This means the gate shares an *adapter* with the
+>   Controller but uses a *different model* — the independence that matters.)
+> - **Deterministic delivery + fail-closed floor:** the LLM judges and calls `risk_emit_constraint`
+>   (`connection/risk_tool.py`) with its verdict; the tool picks the proposal Risk was activated on
+>   (`coordination.latest_proposal`), applies a deterministic floor
+>   (`coordination.structural_violations`, scanning ONLY the fix + rollback presence — BLOCK if
+>   LLM-reject OR floor-fires), builds a Pydantic `Constraint`, and posts it to @Controller with
+>   case markers byte-identical to the Controller (`board.case_markers`). The system prompt directs
+>   the LLM to judge the **fix/rollback, not the diagnosis**.
+> - **§8 bug:** N/A — Anthropic path only.
 
-adapter = AnthropicAdapter(
-    model="claude-opus-4-5-20251215",       # a DIFFERENT Claude model than the Controller
-    system_prompt="<Risk full prompt; see AGENTS.md §2.6>",   # or custom_section=
-    max_tokens=4096,
+```python
+from band.adapters import LangGraphAdapter
+from langchain_anthropic import ChatAnthropic
+from langgraph.checkpoint.memory import InMemorySaver
+from connection.risk_tool import RISK_TOOLS   # = [risk_emit_constraint]
+
+adapter = LangGraphAdapter(
+    llm=ChatAnthropic(model="claude-opus-4-8", api_key=os.getenv("ANTHROPIC_API_KEY")),  # env RISK_MODEL
+    checkpointer=InMemorySaver(),
+    custom_section="<Risk hard-rules prompt; see agents/risk/risk.py>",
+    additional_tools=RISK_TOOLS,
     enable_execution_reporting=True,
 )
 ```
-- Needs `ANTHROPIC_API_KEY`. Built-in manual tool loop (up to ~10 iterations).
-- Use a different Claude model from the Controller so the gate is a genuinely independent model.
+- Needs `ANTHROPIC_API_KEY`. (The original `AnthropicAdapter` + `provider:model` design is kept as
+  historical context below, but is NOT what's built — that adapter can't post from a custom tool.)
+- **Proposal identification — `proposal_id` deferred (M3 decision).** Proposals are matched to a
+  case by the `[case:cls:resource]` marker and picked by the **latest-per-case** rule (sort by
+  `ChatMessage.inserted_at`, last wins; `coordination.contributions`). No `proposal_id` is assigned
+  — sufficient while at most one live proposal per case is in flight (the reject→revise arc just
+  posts a newer proposal that supersedes the old). **Introduce a `proposal_id` only if** multiple
+  distinct proposals for the same case must be tracked/deduped concurrently, or revisions must be
+  correlated to specific Constraints (revisit at M4+).
 
 ## 6. Provider routing (the fiddly part — verify at build)
 
