@@ -52,6 +52,10 @@
 ### M2 — Controller + one Specialist (the core loop)
 - Implement the Controller's `BoardState` derivation and deterministic activation rules.
 - Implement the **Data Specialist** (simplest reversible fix: public-access-block).
+- **Case keying:** the Controller keys cases by **`(cls, resource)`**, NOT by `finding_id`.
+  `finding_id` is assigned in scan-enumeration order (`C-1`, `C-2`, …) and is therefore
+  display-only / not stable across scans — never use it as the case identity. Intended helper:
+  `case_key(finding) -> f"{finding.cls}:{finding.resource}"` (e.g. `data:acme-public-data`).
 - **Done when:** Scanner posts the S3 finding → Controller activates Data Specialist → Specialist posts a `proposal` with `fix`+`rollback`.
 
 ### M3 — Risk constraints + the revision loop *(the differentiator)*
@@ -62,6 +66,11 @@
 ### M4 — Action Layer + human gate + live mutation
 - Implement `register_action` / `apply_action` / `rollback_action` against LocalStack.
 - Implement the human gate (UI button → `/approve/{action_id}` releasing the block).
+- **Idempotency requirement:** action execution must be idempotent and safe to retry.
+  `register_action` / `apply_action` / `rollback_action` must avoid duplicate mutation, persist
+  action state (e.g. registered → approved → applied → rolled_back), and make rollback
+  restorative. Re-running an already-approved/applied action must NOT create uncontrolled
+  duplicate side effects.
 - **Done when:** on approval, the fix actually changes LocalStack state (verify via `cloud_describe` before/after), and rollback restores it.
 
 ### M5 — Provable audit chain

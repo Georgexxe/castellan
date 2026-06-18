@@ -48,6 +48,8 @@ async def cloud_scan_and_emit_findings(config: RunnableConfig) -> str:
     )
 
 
+# Reserved for future M6 specialist tools (IAM/Network/Data specialists). Not currently wired
+# into any agent's tool list — kept intentionally; do not delete.
 @tool
 def cloud_scan_findings() -> list:
     """Scan the cloud target and return the list of Finding objects (read-only, structured)."""

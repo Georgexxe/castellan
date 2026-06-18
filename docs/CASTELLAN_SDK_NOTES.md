@@ -66,22 +66,39 @@ Each agent is its **own process / file / container**. Run with `uv run python <a
 ## 5. Verified adapter signatures, per Castellan agent
 
 ### Scanner — `LangGraphAdapter` + Featherless
+> **AS BUILT (M1) — read this before reusing the snippet below.** The Scanner's detection,
+> Finding formatting, and Band delivery are all **deterministic Python**, not LLM work:
+> - The Scanner's single LangChain tool is **`cloud_scan_and_emit_findings`** (in `cloud/tools.py`),
+>   not `cloud_describe_tool`. That tool calls `cloud.scan.scan_findings()` (detection in code),
+>   formats each Finding with `json.dumps`, and posts it to the Controller via the REST client
+>   (`connection/poster.py` → `AsyncRestClient.agent_api_messages.create_agent_chat_message`),
+>   resolving the mention from the room participants endpoint (participant id, matched by handle).
+> - **Featherless only TRIGGERS the Scanner now** (the LLM's only job is to call that one tool
+>   once on an `@Scanner scan now` mention). It authors no JSON and calls no `band_send_message`.
+>   Reason: the LLM relay path dropped Featherless connections mid-stream and could corrupt values.
+> - **Featherless returns at M6** as a separate, NON-BLOCKING **Evidence Analyst / Remediation
+>   Explainer** (reads the deterministic Finding JSON, posts risk context). It is never the Risk
+>   gate — Risk stays Anthropic. See `CASTELLAN_BUILD_PLAN.md` → "Build deviations".
+
 ```python
 from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import InMemorySaver
 from band.adapters import LangGraphAdapter
+from cloud.tools import SCANNER_TOOLS   # = [cloud_scan_and_emit_findings]
 
 adapter = LangGraphAdapter(
     llm=ChatOpenAI(
-        model="<featherless-open-source-model-id>",   # VERIFY id (Featherless catalog)
-        base_url="https://api.featherless.ai/v1",      # VERIFY base URL
+        model="Qwen/Qwen2.5-7B-Instruct",              # verified Featherless catalog id (env-overridable)
+        base_url="https://api.featherless.ai/v1",      # verified base URL
         api_key=os.getenv("FEATHERLESS_API_KEY"),
     ),
     checkpointer=InMemorySaver(),
-    additional_tools=[cloud_describe_tool],            # LangChain @tool functions
+    additional_tools=SCANNER_TOOLS,                    # deterministic scan+deliver tool (not cloud_describe)
 )
 ```
 - LangGraph custom tools = LangChain `@tool`-decorated functions in `additional_tools`.
+- A custom tool can read the room id from its injected `RunnableConfig` (`configurable.thread_id`
+  == room_id), which is how `cloud_scan_and_emit_findings` posts to the right room.
 
 ### Controller — `PydanticAIAdapter` + Anthropic model (NOT AI/ML API — see §8)
 ```python

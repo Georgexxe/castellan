@@ -109,6 +109,7 @@ class AuditEntry(BaseModel):
 - **Activated by:** any new finding or contribution in the room.
 - **Produces:** activation @mentions, convergence summaries to `@Human`, escalations.
 - **Custom tools:** Band platform tools (`thenvoi_send_message`, `thenvoi_lookup_peers`, `thenvoi_add_participant`, `thenvoi_get_participants`); maintains `BoardState` from history.
+- **Case keying (deterministic):** the Controller identifies/dedupes cases by **`(cls, resource)`**, NOT by `finding_id`. `finding_id` (`C-1`, `C-2`, …) is assigned in scan-enumeration order by the Scanner and is **display-only / not stable across scans** — never key a case on it. Use the helper `case_key(finding) -> f"{finding.cls}:{finding.resource}"` (e.g. `data:acme-public-data`) when deriving `BoardState` from message history.
 - **Activation rules (deterministic, enforce in code around the LLM):**
   - case `cls=iam`, no active proposal → `@IAM Specialist`
   - case `cls=network`, no active proposal → `@Network Specialist`
