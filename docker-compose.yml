@@ -1,0 +1,22 @@
+# Castellan — local infra. M1 brings up LocalStack (the demo cloud target).
+# Agent services (one per agent) are added in later milestones.
+#
+#   docker compose up -d localstack     # start the cloud target
+#   cd castellan && uv run python -m cloud.seed   # plant the misconfigurations
+
+services:
+  localstack:
+    # Pinned to a free Community version. The rolling `:latest` (2026.x) now requires a
+    # LOCALSTACK_AUTH_TOKEN and exits (code 55) without one — pinning keeps the repo's
+    # repro path free and account-less. If you have a LocalStack account, you can instead
+    # use `localstack/localstack:latest` and set LOCALSTACK_AUTH_TOKEN below.
+    image: localstack/localstack:3.8
+    container_name: castellan-localstack
+    ports:
+      - "4566:4566"            # LocalStack edge endpoint (matches LOCALSTACK_URL default)
+    environment:
+      - SERVICES=s3,iam,ec2,sts
+      - DEBUG=0
+      # - LOCALSTACK_AUTH_TOKEN=${LOCALSTACK_AUTH_TOKEN}   # only if using :latest / Pro
+    volumes:
+      - "./.localstack:/var/lib/localstack"

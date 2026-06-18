@@ -4,6 +4,28 @@
 
 ---
 
+## Build deviations (decisions made during implementation — authoritative)
+
+- **M1 Scanner delivery is deterministic, not LLM-driven.** Detection AND finding delivery run
+  in code: `cloud/scan.py` builds the findings + formats the messages (`json.dumps`), and
+  `scripts/scan_and_post.py` posts them to the Band room via the REST client
+  (`AsyncRestClient.agent_api_messages.create_agent_chat_message`), AS the Scanner, outside the
+  LLM/LangGraph loop. Reason: the LLM relay path failed on Featherless connection drops
+  (`RemoteProtocolError` → `APIConnectionError`) and could silently alter values (e.g. `"*"`→`""`).
+  Mentions resolve via the room participants endpoint (participant id, matched by handle).
+- **Featherless moves off the Scanner → a NEW, NON-BLOCKING M6 agent.** Because the Scanner is
+  now deterministic, Featherless is no longer in the M1 critical path. To keep the Featherless
+  partner prize, add a Featherless-powered **"Evidence Analyst / Remediation Explainer"**: it
+  reads the deterministic Finding JSON and posts human-readable risk context into Band. It is
+  advisory only — it must NOT gate or block the remediation loop.
+- **Do NOT put Featherless in the Risk/Policy agent.** Risk is the safety gate and must stay on
+  a stable provider (Anthropic). The Featherless role is the Evidence Analyst, nothing else.
+- ⚠️ **Prize claim gate:** the Featherless Evidence Analyst must actually be **built and demoed**
+  before we claim the Featherless prize in the submission. Do not list Featherless as used until
+  that agent is real and shown in the demo.
+
+---
+
 ## Pre-flight (do before any code)
 
 1. **Claim credits / accounts** (slowest path — do first): Band + Pro (`BANDHACK26`), AI/ML API (`lablab.ai/redeem-coupon/ai-ml-api-coupon-band-hackathon`), Featherless (`BOA26`), Anthropic API key (`console.anthropic.com`).

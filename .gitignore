@@ -2,6 +2,9 @@
 .env
 agent_config.yaml
 
+# LocalStack data volume
+.localstack/
+
 # Python / uv
 .venv/
 __pycache__/
