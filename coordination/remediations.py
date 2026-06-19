@@ -1,12 +1,12 @@
 """
-M6 — deterministic remediation builder (pure; no Band/LLM/boto3).
+Deterministic remediation builder (pure; no Band/LLM/boto3).
 
-The Data Specialist's LLM only TRIGGERS; THIS module turns real cloud evidence (a `cloud.describe`
+The Data Specialist's LLM only triggers; THIS module turns real cloud evidence (a `cloud.describe`
 result) into the concrete, reversible fix + rollback — and FAILS CLOSED when the evidence is not
 reliable. For the seeded `acme-public-data` bucket the output's fix/rollback are byte-identical to
-`coordination.fixtures._GOOD_S3`, so `proposal_id` matches the `good_s3` path (asserted offline).
+`coordination.fixtures._GOOD_S3`, so `proposal_id` matches the `good_s3` path.
 
-Fail-closed contract (Amendment, correction 3):
+Fail-closed contract:
   - `public_access_block is None`  -> the bucket has NO block configured; restoring the documented
     all-false seed baseline is a *valid* rollback target.
   - a well-formed PAB dict (all four bool flags) -> restore the OBSERVED prior state.

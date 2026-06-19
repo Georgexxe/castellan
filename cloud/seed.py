@@ -1,9 +1,9 @@
 """
-Seed the three demo misconfigurations into LocalStack (BUILD_PLAN M1 / ARCHITECTURE §7):
+Seed the three demo misconfigurations into LocalStack:
 
-  C-7  data    : public S3 bucket            -> acme-public-data
-  C-12 iam     : over-permissive IAM role    -> acme-admin-role  (Action/Resource "*")
-  C-19 network : security group open 0.0.0.0/0 on port 22
+  data    : public S3 bucket            -> acme-public-data
+  iam     : over-permissive IAM role    -> acme-admin-role  (Action/Resource "*")
+  network : security group open 0.0.0.0/0 on port 22
 
 Idempotent: re-running tolerates already-existing resources. Returns an inventory of
 (resource_type, resource_id) pairs the Scanner can enumerate and describe.

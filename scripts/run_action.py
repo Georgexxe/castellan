@@ -1,13 +1,13 @@
 """
-M4 driver — human-gated, reversible execution against LocalStack (no LLM in the action path).
+Action driver — human-gated, reversible execution against LocalStack (no LLM in the action path).
 
-EXECUTION SOURCE (M6, correction 1): prefer the LIVE proposal posted by the Data Specialist and read
-from the room — NOT a fixture. The `proposal_id == good_s3` equality is then a VERIFICATION that the
-live specialist produced the identical safe object, not the source of the executed fix/rollback.
+EXECUTION SOURCE: prefer the LIVE proposal posted by the Data Specialist and read from the room —
+NOT a fixture. The `proposal_id == good_s3` equality is then a VERIFICATION that the live specialist
+produced the identical safe object, not the source of the executed fix/rollback.
 
   --latest-approved <cls:resource>  read the latest proposal for that case from the room and execute
                                     THAT Contribution's fix/rollback (the verdict gate still requires
-                                    its latest Risk Constraint to be `approve`). [M6 path]
+                                    its latest Risk Constraint to be `approve`).
   --proposal-id <pid>               same, selecting the proposal by its 12-hex proposal_id.
   <fixture>                         back-compat: execute a synthetic fixture (good_s3, ...). Legacy.
 

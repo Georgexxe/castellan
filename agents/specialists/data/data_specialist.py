@@ -1,17 +1,12 @@
 """
-Castellan — Data Specialist agent (M6: the first live remediation specialist).
+Castellan — Data Specialist agent: proposes reversible S3 remediations.
 
-STACK: LangGraph adapter + ChatAnthropic, model `claude-sonnet-4-6` (env DATA_MODEL). Chosen by the
-M6 transport matrix: the AI/ML API key authenticates but the account is out of funds (can't complete
-a call), so AI/ML API + CrewAI are DEFERRED; ChatAnthropic is proven live and needs zero new deps
-(same pattern as Risk/Controller). Honest framing: "Anthropic-backed Data Specialist with
-deterministic remediation building + validation" — NOT CrewAI, NOT AI/ML API.
+Runs on LangGraph + ChatAnthropic, model claude-sonnet-4-6 (env DATA_MODEL).
 
-DETERMINISTIC-FIRST: the LLM only TRIGGERS — it reads the routed case and calls `data_emit_proposal`
+Deterministic-first: the LLM only triggers — it reads the routed case and calls `data_emit_proposal`
 once with a short diagnosis. Python (connection/data_tool.py + coordination/remediations.py) inspects
-the live bucket, BUILDS + VALIDATES the reversible fix/rollback, fails closed on unreliable evidence,
-and posts the proposal to the Risk gate. This replaces the synthetic scripts/post_contribution.py
-stand-in — the last non-genuine record in the audit chain.
+the live bucket, builds + validates the reversible fix/rollback, fails closed on unreliable evidence,
+and posts the proposal to the Risk gate.
 
 Run from the repo root:  cd castellan && uv run python agents/specialists/data/data_specialist.py
 Requires ANTHROPIC_API_KEY in .env and a `data_specialist:` block in agent_config.yaml.
@@ -23,8 +18,7 @@ import os
 import sys
 from pathlib import Path
 
-# Run-from-anywhere: repo root (castellan/) on sys.path so `cloud` / `coordination` / `connection`
-# import cleanly even when launched as `python agents/specialists/data/data_specialist.py`.
+# Put the repo root on sys.path so `cloud` / `coordination` / `connection` import when run as a script.
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))

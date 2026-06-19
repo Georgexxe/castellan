@@ -1,9 +1,9 @@
 """
-Data Specialist's proposal tool (M6), registered on the Data Specialist LangGraph adapter.
+Data Specialist's proposal tool, registered on the Data Specialist LangGraph adapter.
 
-The LLM only TRIGGERS: it calls `data_emit_proposal(diagnosis)` once. This tool then does the
+The LLM only triggers: it calls `data_emit_proposal(diagnosis)` once. This tool then does the
 security-critical work deterministically (no LLM):
-  1. room_id from config.configurable.thread_id (the M2/M3 pattern),
+  1. room_id from config.configurable.thread_id,
   2. fetch the specialist's scoped context; read the data case (cls:resource) from the [case:...]
      marker on the Controller's activation message that @mentions this specialist,
   3. inspect the live bucket via cloud_describe — FAIL CLOSED if the read is unreliable
@@ -12,7 +12,7 @@ security-critical work deterministically (no LLM):
   5. self-check the deterministic floor (coordination.structural_violations),
   6. idempotency: skip with "already proposed" if the room already holds this [case][proposal_id],
   7. post the type=proposal Contribution to @Risk Policy via REST as `data_specialist`
-     (byte-identical format to scripts/post_contribution.py, so Risk/M4/M5 see it identically).
+     (byte-identical format to scripts/post_contribution.py, so Risk and the audit chain see it identically).
 
 LangGraph custom tools don't get room-bound AgentTools, so we post via our own REST client.
 """
@@ -132,7 +132,7 @@ async def _emit(room_id: str, diagnosis: str) -> str:
         return "No data case in context (no [case:data:...] marker). Nothing to propose."
     cls, _, resource = case_key.partition(":")
 
-    # --- live evidence; FAIL CLOSED on an unreliable read (correction 3) ---
+    # --- live evidence; FAIL CLOSED on an unreliable read ---
     try:
         evidence = cloud_describe("s3_bucket", resource)
     except Exception as e:  # timeout / network / non-ClientError -> NOT a None case
@@ -151,7 +151,7 @@ async def _emit(room_id: str, diagnosis: str) -> str:
 
     pid = proposal_id(case_key, contrib.fix, contrib.rollback)
 
-    # --- idempotency: do not double-post the same [case][proposal_id] (correction 2) ---
+    # --- idempotency: do not double-post the same [case][proposal_id] ---
     if _already_proposed(messages, pid):
         log.info("data: proposal %s for %s already in room — skipping", pid, case_key)
         return f"already proposed: {case_key} [proposal_id:{pid}] is already in the room."

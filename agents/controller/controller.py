@@ -1,19 +1,14 @@
 """
-Castellan — Controller agent (M2: blackboard routing).
+Castellan — Controller agent: blackboard routing.
 
-STACK (decision — see docs/CASTELLAN_SDK_NOTES.md): **LangGraph adapter + ChatAnthropic**
-(langchain-anthropic), model `claude-sonnet-4-6`. NOT Pydantic-AI: crewai ⊥ pydantic-ai in one
-environment (Band's documented incompatibility — crewai pins pydantic<2.12, pydantic-ai needs
-≥2.12), and pydantic-ai was the only framework breaking the shared venv. The Controller's
-reasoning is deterministic (coordination.board); the LLM only TRIGGERS the routing tool, so it
-needs no pydantic-ai-specific behaviour. Project stays cross-framework: LangGraph + CrewAI +
-Anthropic across multiple providers.
+Runs on LangGraph + ChatAnthropic (model claude-sonnet-4-6); see docs/CASTELLAN_SDK_NOTES.md for
+the adapter/provider rationale. The Controller's reasoning is deterministic (coordination.board +
+connection/controller_tool.py); the LLM only triggers the routing tool.
 
-M2 SCOPE: read the Scanner's findings off the room, open one case per (cls, resource), and
-activate the owning specialist by @mention. Routing is deterministic
-(connection/controller_tool.py); the Data/IAM/Network specialists themselves are later milestones.
+It reads the Scanner's findings off the room, opens one case per (cls, resource), and activates the
+owning specialist by @mention.
 
-Run from the repo root (load_agent_config reads ./agent_config.yaml from CWD):
+Run from the repo root (load_agent_config reads ./agent_config.yaml from the CWD):
   cd castellan && uv run python agents/controller/controller.py
 Requires ANTHROPIC_API_KEY in .env and a `controller:` block in agent_config.yaml.
 """
@@ -24,8 +19,7 @@ import os
 import sys
 from pathlib import Path
 
-# Run-from-anywhere: put the repo root (castellan/) on sys.path so `connection` / `coordination`
-# import cleanly when launched as `python agents/controller/controller.py`.
+# Put the repo root on sys.path so `connection` / `coordination` import when run as a script.
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
@@ -47,8 +41,7 @@ logging.basicConfig(
 )
 log = logging.getLogger("castellan.controller")
 
-# ChatAnthropic model id (NOT the pydantic-ai 'anthropic:' prefix). Current June 2026; the
-# retired claude-3-5-sonnet-* would fail. Env-overridable; read AFTER load_dotenv() (M1 trap).
+# ChatAnthropic model id. Env-overridable; read AFTER load_dotenv() (else .env isn't loaded yet).
 DEFAULT_CONTROLLER_MODEL = "claude-sonnet-4-6"
 
 CONTROLLER_PROMPT = """\
@@ -83,7 +76,7 @@ async def main() -> None:
         checkpointer=InMemorySaver(),
         custom_section=CONTROLLER_PROMPT,
         additional_tools=CONTROLLER_TOOLS,  # = [controller_route] (deterministic routing)
-        enable_execution_reporting=True,  # surface the controller_route call in the room for the demo
+        enable_execution_reporting=True,  # surface the controller_route call in the room
     )
 
     conn = {}

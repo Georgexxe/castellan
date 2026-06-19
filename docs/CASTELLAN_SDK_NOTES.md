@@ -76,7 +76,7 @@ Each agent is its **own process / file / container**. Run with `uv run python <a
 > - **Featherless only TRIGGERS the Scanner now** (the LLM's only job is to call that one tool
 >   once on an `@Scanner scan now` mention). It authors no JSON and calls no `band_send_message`.
 >   Reason: the LLM relay path dropped Featherless connections mid-stream and could corrupt values.
-> - **Featherless returns at M6** as a separate, NON-BLOCKING **Evidence Analyst / Remediation
+> - **Featherless returns at M6 (now built)** as a separate, NON-BLOCKING **Evidence Analyst / Remediation
 >   Explainer** (reads the deterministic Finding JSON, posts risk context). It is never the Risk
 >   gate — Risk stays Anthropic. See `CASTELLAN_BUILD_PLAN.md` → "Build deviations".
 
@@ -262,7 +262,7 @@ The **Action Layer** (`actions/`) and **Auditor** (`audit/`) are plain Python mo
 > - **Fail-closed:** describe error / model hiccup → a clean "summary unavailable", never a partial
 >   or broken post.
 > - **UI:** the dashboard's reserved "Evidence Analyst Summary" card is wired in a later step (a new
->   read-only bridge endpoint for the latest `[evidence_summary]`); not built yet.
+>   read-only bridge endpoint for the latest `[evidence_summary]`); now built.
 
 > **AS BUILT (M6) — live Data Specialist (`agents/specialists/data/`, `connection/data_tool.py`,
 > `coordination/remediations.py`):**

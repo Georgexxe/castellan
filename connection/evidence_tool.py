@@ -1,5 +1,5 @@
 """
-Evidence Analyst (M6b) — Featherless-backed, read-only, ADDITIVE.
+Evidence Analyst — Featherless-backed, read-only, additive.
 
 Produces a plain-language risk summary for an opened case and posts it as an `[evidence_summary]`
 message addressed to a human reviewer. It NEVER posts a Contribution / Constraint / action record,
@@ -7,9 +7,8 @@ and `coordination.audit.classify_records` ignores `[evidence_summary]` — so th
 unaffected (it is not a chained record type). Evidence comes from `cloud_describe` (live, read-only),
 not the transcript, so the agent depends on nothing in the proven spine.
 
-Transport: `ChatOpenAI` -> Featherless (Qwen-7B), the proven pattern (agents/scanner/scanner.py).
-A weaker 7B model is fine here: this agent only summarizes — it has no gate to pass. ONE Featherless
-call per case. On any failure → a clean "summary unavailable", never a partial/broken post.
+Transport: `ChatOpenAI` -> Featherless (Qwen-7B). ONE Featherless call per case. On any failure →
+a clean "summary unavailable", never a partial/broken post.
 
 THREE out-of-audit guarantees:
   1. `[evidence_summary]` is not one of the chained record types → classify_records returns None.

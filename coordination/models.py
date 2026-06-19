@@ -1,8 +1,8 @@
 """
-Castellan — shared coordination data models (AGENTS.md §1).
+Castellan — shared coordination data models.
 
-M1: Finding/FindingClass/Severity (the Scanner). M3 adds ActionSpec/Contribution/Constraint —
-the proposal + policy-gate payloads. BoardState/AuditEntry arrive in later milestones.
+Finding/FindingClass/Severity (the Scanner's detections) and ActionSpec/Contribution/Constraint
+(the proposal + policy-gate payloads).
 """
 
 from __future__ import annotations

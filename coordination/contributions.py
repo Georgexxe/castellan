@@ -47,18 +47,18 @@ def _case_key_from_content(content: str) -> str | None:
     return m.group(1).strip() if m else None
 
 
-# --- proposal_id: stable content identity of a proposal (M4 Task B) ------------------------------
+# --- proposal_id: stable content identity of a proposal -----------------------------------------
 # Pinned canonical-JSON contract so the hash is byte-identical wherever it's computed.
 
 def canonical_json(obj) -> str:
     """Canonical JSON: sorted keys, compact separators, ASCII. Identical output everywhere.
 
-    The single pinned canonicalizer — reused by proposal_id (M4) and the audit hash chain (M5).
+    The single pinned canonicalizer — reused by proposal_id and the audit hash chain.
     """
     return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
 
 
-# Back-compat alias: M4 used the private name; keep it pointing at the public canonicalizer.
+# Back-compat alias kept pointing at the public canonicalizer.
 _canonical = canonical_json
 
 

@@ -1,5 +1,5 @@
 """
-Risk/Policy gate's constraint tool (M3), registered on the Risk LangGraph adapter.
+Risk/Policy gate's constraint tool, registered on the Risk LangGraph adapter.
 
 Risk runs on LangGraph + ChatAnthropic (a distinct model from the Controller). The LLM makes the
 policy *judgment* and calls `risk_emit_constraint` once with its verdict; this tool then:
@@ -10,8 +10,8 @@ policy *judgment* and calls `risk_emit_constraint` once with its verdict; this t
      byte-identical to the Controller's (board.case_id/case_markers),
   4. posts it to @Controller via REST as `risk_policy`.
 
-LangGraph custom tools get `room_id` from `config.configurable.thread_id` (the M2 pattern); they
-do not get the room-bound AgentTools, so we post via our own REST client (like connection/poster).
+LangGraph custom tools get `room_id` from `config.configurable.thread_id`; they do not get the
+room-bound AgentTools, so we post via our own REST client (like connection/poster).
 """
 
 from __future__ import annotations
@@ -65,7 +65,7 @@ def _case_ns(case_key: str):
 def decide_verdict(
     llm_verdict: str, floor: list[str], rule: str, rationale: str
 ) -> tuple[str, str, str]:
-    """Pure final-verdict logic (Amendment 2), unit-testable in isolation.
+    """Pure final-verdict logic, unit-testable in isolation.
 
     BLOCK if (LLM rejected) OR (the deterministic floor fired). APPROVE only if both are clear.
     Returns (final_verdict, final_rule, final_rationale). When the floor overrides an LLM approve,

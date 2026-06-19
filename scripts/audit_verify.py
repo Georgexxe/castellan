@@ -1,6 +1,6 @@
 """
-M5 auditor (CLI) — rebuild the audit chain from Band room history and verify it against an
-out-of-band anchor; tamper demo. The reconstruction + verify + tamper logic lives in the SHARED
+Auditor (CLI) — rebuild the audit chain from Band room history and verify it against an
+out-of-band anchor; tamper demo. The reconstruction + verify + tamper logic lives in the shared
 module `connection.audit_reader` (imported by BOTH this CLI and the FastAPI read-bridge), which in
 turn calls the pure functions in `coordination.audit`. This script only does CLI argument handling,
 printing, and the guarded `--anchor` write path.

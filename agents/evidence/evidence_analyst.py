@@ -1,16 +1,15 @@
 """
-Castellan — Evidence Analyst (M6b: Featherless, the second sponsor basket).
+Castellan — Evidence Analyst: read-only, additive plain-language risk summaries.
 
-A deliberately LOWER-STAKES, READ-ONLY, ADDITIVE agent. When @mentioned about an opened case, it
-reads the resource's live evidence (cloud_describe) and posts a plain-language risk summary — human
-context before the human approves. It is on Featherless (Qwen-7B) precisely because it only
-summarizes: it produces NO Contribution, passes NO Risk gate, touches NO Action/audit machinery, and
-changes NOTHING in the proven Scanner→Controller→Specialist→Risk→action→audit spine. Its
-[evidence_summary] message is ignored by the audit chain reconstruction (not a chained record type).
+When @mentioned about an opened case, it reads the resource's live evidence (cloud_describe) and
+posts a plain-language risk summary — human context before the human approves. It produces NO
+Contribution, passes NO Risk gate, and touches NO Action/audit machinery; its [evidence_summary]
+message is ignored by the audit chain reconstruction (not a chained record type), so it changes
+nothing in the proven spine.
 
-STACK: LangGraph + ChatOpenAI -> Featherless (the proven transport; agents/scanner/scanner.py), zero
-new deps. The deterministic work (evidence fetch, the one Featherless summarization call, sanitize,
-post) lives in connection/evidence_tool.py; this agent just listens and triggers it.
+Runs on LangGraph + ChatOpenAI -> Featherless (Qwen-7B). The deterministic work (evidence fetch, the
+one Featherless summarization call, sanitize, post) lives in connection/evidence_tool.py; this agent
+listens and triggers it.
 
 Run from the repo root:  cd castellan && uv run python agents/evidence/evidence_analyst.py
 Requires FEATHERLESS_API_KEY in .env and an `evidence_analyst:` block in agent_config.yaml.

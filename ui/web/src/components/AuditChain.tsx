@@ -50,7 +50,7 @@ export function AuditChain({ data }: { data: AuditResponse }) {
 
   return (
     <div className="mx-auto w-full max-w-3xl px-5 py-10 sm:px-8 sm:py-14">
-      {/* ---- thesis: grasp the screen in three seconds ---- */}
+      {/* ---- thesis ---- */}
       <p className="mb-5 max-w-xl text-[13.5px] leading-relaxed text-fg-muted">
         Every remediation is gated, reversible, and cryptographically provable.
       </p>

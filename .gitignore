@@ -8,6 +8,9 @@ agent_config.yaml
 # M5 audit anchors (local out-of-band trusted heads)
 .audit/
 
+# Internal build-management notes — kept local, not published.
+docs/CASTELLAN_BUILD_PLAN.md
+
 # Python / uv
 .venv/
 __pycache__/

@@ -1,13 +1,13 @@
 """
-Action Layer executor (M4) — deterministic, allowlisted, idempotent. NO LLM in the path.
+Action Layer executor — deterministic, allowlisted, idempotent. NO LLM in the path.
 
-register_action / apply_action / rollback_action (AGENTS §3). Reuses cloud/client.get_client
-(the same boto3→LocalStack client M1 used). Only allowlisted actions can run, each with its own
-build_kwargs (target → the resource-id kwarg; IAM/bucket policy docs JSON-stringified). The
-allowlist lookup GATES every getattr — an unknown action is refused before dispatch.
+register_action / apply_action / rollback_action. Reuses cloud/client.get_client (the shared
+boto3→LocalStack client). Only allowlisted actions can run, each with its own build_kwargs
+(target → the resource-id kwarg; IAM/bucket policy docs JSON-stringified). The allowlist lookup
+GATES every getattr — an unknown action is refused before dispatch.
 
-Idempotency is keyed on proposal_id via in-memory sets. Durable idempotency (surviving a process
-restart) is deferred to M5 (audit chain) — consistent with M2 deriving dedup from history, not a DB.
+Idempotency is keyed on proposal_id via in-memory sets; durable idempotency (surviving a process
+restart) is derived from the room's audit history, not a DB.
 """
 
 from __future__ import annotations

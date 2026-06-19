@@ -1,15 +1,9 @@
 """
-Controller's deterministic routing tool (M2), registered on the LangGraph adapter.
+Controller's deterministic routing tool, registered on the LangGraph adapter.
 
-Decision (docs/CASTELLAN_SDK_NOTES.md): the Controller runs on **LangGraph + ChatAnthropic**,
-NOT Pydantic-AI — because crewai ⊥ pydantic-ai in one environment (Band's documented
-incompatibility: crewai pins pydantic<2.12, pydantic-ai needs ≥2.12) and pydantic-ai was the
-only framework breaking the shared venv. The Controller's reasoning is deterministic
-(coordination.board); the LLM only TRIGGERS this tool.
-
-LangGraph custom tools receive the run config (not the room-bound AgentTools), so we read
-`room_id` from `config.configurable.thread_id` (the proven M1 pattern) and post via the Band
-REST client AS the Controller — mirroring connection/poster.py.
+LangGraph custom tools receive the run config (not the room-bound AgentTools), so we read `room_id`
+from `config.configurable.thread_id` and post via the Band REST client AS the Controller — mirroring
+connection/poster.py. (See docs/CASTELLAN_SDK_NOTES.md for the LangGraph + ChatAnthropic decision.)
 
 Hardening: per-room asyncio.Lock (concurrent double-route guard), stable [case_id:<hash>] dedup
 marker, content-based parsing of the real wire format ("*" preserved), sender logging on empty,
@@ -110,7 +104,7 @@ async def _route(room_id: str) -> str:
         chat_id=room_id, request_options=DEFAULT_REQUEST_OPTIONS
     )
     messages = list(ctx.data or [])
-    # NOTE: single page only — pagination unverified (a 3-finding room is one page). Plan §Hardening #5.
+    # NOTE: single page only — pagination is not handled (a 3-finding room is one page).
 
     cases = parse_findings_from_messages(messages)
     routed = already_routed_ids(messages)
@@ -142,7 +136,7 @@ async def _route(room_id: str) -> str:
         spec = _find_specialist(participants, specialist_name)
         if spec is None:
             awaiting.append(key)
-            log.info("case %s: specialist '%s' not in room — awaiting (M6)", key, specialist_name)
+            log.info("case %s: specialist '%s' not in room — awaiting specialist", key, specialist_name)
             continue
         handle = _attr(spec, "handle")
         mention = ChatMessageRequestMentionsItem(id=_attr(spec, "id"), handle=handle)

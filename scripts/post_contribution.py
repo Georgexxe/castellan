@@ -1,6 +1,6 @@
 """
 scripts/post_contribution.py — post a synthetic Contribution fixture into a Band room, addressed
-to @Risk Policy, to drive M3 Risk testing without a live specialist.
+to @Risk Policy (a testing stand-in for a live specialist's proposal).
 
 It posts AS the Controller (simulating the Controller activating Risk after a specialist proposal):
 the message carries the proposal Contribution JSON in a fenced block plus the case markers

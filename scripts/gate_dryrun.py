@@ -1,10 +1,10 @@
 """
-M4 step-2 DRY-RUN: prove the human-gate READ path with execution STUBBED.
+Dry-run: prove the human-gate READ path with execution STUBBED.
 
 Posts an approval request to the room and waits for your reply. On an EXACT human
 `APPROVE|DENY|ROLLBACK <proposal_id>` it prints "would execute" — it performs NO mutation. This
-proves the poll loop reads + correctly matches a human reply before the gate is ever wired to the
-executor (M4 step 3).
+proves the poll loop reads + correctly matches a human reply before the gate is wired to the
+executor.
 
 Usage:
     cd castellan

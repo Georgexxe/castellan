@@ -1,24 +1,18 @@
 """
-Castellan — Scanner agent (M1: structured findings on the board).
+Castellan — Scanner agent: posts structured Findings to the Controller.
 
-VERIFIED AT INSTALL (SDK_NOTES §12, band-sdk 1.0.0):
-  - import module    : `band`         (NOT `thenvoi` — not importable in this version)
-  - platform tools   : `band_*`       (e.g. band_send_message) — zero `thenvoi_*` present
-  - connection env   : BAND_WS_URL / BAND_REST_URL (default to app.band.ai if unset)
-  - config loader    : band.config.load_agent_config reads ./agent_config.yaml from CWD,
-                       so run from the repo root: `cd castellan && uv run python agents/scanner/scanner.py`
+Detection, Finding formatting, and Band delivery are all deterministic Python (cloud/scan.py +
+the cloud_scan_and_emit_findings tool); the Featherless LLM only triggers that one tool on an
+`@Scanner scan now` mention — it authors no JSON and calls no band_send_message.
 
-M1 SCOPE: detection is DETERMINISTIC and done in code by the `cloud_scan_findings` tool
-(cloud/scan.py); the Scanner LLM only relays each returned Finding via band_send_message,
-posted to the Controller's full namespaced Band handle (e.g. @g18797056/controller — bare
-@Controller does not resolve). It only detects and structures — it never
-proposes or applies fixes (that is the specialists / Action Layer, later milestones).
-Prereq: LocalStack up + seeded — `docker compose up -d localstack` then
-`uv run python -m cloud.seed`.
+Findings are posted to the Controller's FULL namespaced Band handle (e.g. @g18797056/controller);
+a bare @Controller does not resolve on a programmatic send.
 
-THE BAND TRAP (SDK_NOTES §3): plain LLM output is NOT delivered into the Band room.
-An agent only puts text in the room by calling `band_send_message` with at least one
-@mention. The system prompt makes the model post each finding via that tool to @Controller.
+THE BAND TRAP: plain LLM output is NOT delivered into the room — an agent only puts text in the
+room via band_send_message with at least one @mention.
+
+Run from the repo root (load_agent_config reads ./agent_config.yaml from the CWD):
+  cd castellan && uv run python agents/scanner/scanner.py
 """
 
 import asyncio
@@ -27,9 +21,7 @@ import os
 import sys
 from pathlib import Path
 
-# Run-from-anywhere: put the repo root (castellan/) on sys.path so `cloud` / `coordination`
-# import cleanly even when launched as `python agents/scanner/scanner.py` (which otherwise
-# only puts agents/scanner/ on the path).
+# Put the repo root on sys.path so `cloud` / `coordination` import when run as a script.
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
@@ -52,10 +44,8 @@ logging.basicConfig(
 )
 log = logging.getLogger("castellan.scanner")
 
-# Featherless provider (SDK_NOTES §5/§6). Model id overridable via env (FEATHERLESS_MODEL)
-# so you can swap models without editing code. NOTE: the env read happens inside main(),
-# AFTER load_dotenv() — reading it here at module-import time would run before .env is
-# loaded and silently ignore the .env value.
+# Featherless provider. Model id overridable via env FEATHERLESS_MODEL, read inside main()
+# AFTER load_dotenv() — reading it at import time would run before .env loads and miss the value.
 FEATHERLESS_BASE_URL = "https://api.featherless.ai/v1"
 DEFAULT_FEATHERLESS_MODEL = "Qwen/Qwen2.5-7B-Instruct"  # open, ungated
 
@@ -64,9 +54,9 @@ DEFAULT_FEATHERLESS_MODEL = "Qwen/Qwen2.5-7B-Instruct"  # open, ungated
 # NAMESPACES handles as "<user>/<agent>"; a bare "@Controller" does not resolve on a
 # programmatic send. Override via env CONTROLLER_HANDLE.
 
-# M1 system prompt: a pure TRIGGER. Detection, formatting, AND delivery are all done in code
-# by the cloud_scan_and_emit_findings tool — the LLM only triggers it once. The LLM never
-# writes JSON and never calls band_send_message. {controller} is filled in at runtime (main()).
+# System prompt: a pure trigger. Detection, formatting, and delivery are all done in code by the
+# cloud_scan_and_emit_findings tool; the LLM only triggers it once and never writes JSON or calls
+# band_send_message. {controller} is filled in at runtime (main()).
 SCANNER_PROMPT_TEMPLATE = """\
 You are the Scanner in a cloud-security remediation system. Detection AND delivery are done for
 you by a single tool. You never write JSON, and you never send messages yourself.
@@ -111,7 +101,7 @@ async def main() -> None:
         checkpointer=InMemorySaver(),
         custom_section=scanner_prompt,
         additional_tools=SCANNER_TOOLS,  # = [cloud_scan_finding_messages] (deterministic, Python-formatted)
-        enable_execution_reporting=True,  # surfaces tool calls in the room for the demo
+        enable_execution_reporting=True,  # surface tool calls in the room
     )
 
     # ws_url/rest_url default to app.band.ai inside Agent.create; only override when the

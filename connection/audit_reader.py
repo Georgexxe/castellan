@@ -1,9 +1,9 @@
 """
-Shared audit reconstruction layer (M7) — the SINGLE source of truth for rebuilding + verifying the
-audit chain from a Band room, imported by BOTH the CLI (`scripts/audit_verify.py`) and the FastAPI
-read-bridge (`ui/api`). No logic is duplicated: this module does the Band I/O (aggregating scoped
-contexts, reading the anchor) and calls the proven pure functions in `coordination.audit`
-(classify/build/verify/first_divergence) — it never re-parses, re-hashes, or re-classifies.
+Shared audit reconstruction layer for rebuilding + verifying the audit chain from a Band room,
+imported by BOTH the CLI (`scripts/audit_verify.py`) and the FastAPI read-bridge (`ui/api`). No logic
+is duplicated: this module does the Band I/O (aggregating scoped contexts, reading the anchor) and
+calls the proven pure functions in `coordination.audit` (classify/build/verify/first_divergence) —
+it never re-parses, re-hashes, or re-classifies.
 
 Lives in `connection/` (the Band-I/O layer) so `coordination/` stays pure (zero Band imports).
 """

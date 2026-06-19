@@ -1,5 +1,5 @@
 """
-scripts/scan_and_post.py — deterministic REST poster (M1), standalone CLI.
+scripts/scan_and_post.py — deterministic REST poster, standalone CLI.
 
 Scans LocalStack and posts each finding to a Band room AS the Scanner via the REST client,
 completely outside the LLM/LangGraph loop (no Featherless, no model). Delegates to the shared

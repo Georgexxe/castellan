@@ -1,17 +1,14 @@
 """
-Castellan — Risk/Policy agent (M3: the independent policy gate).
+Castellan — Risk/Policy agent: the independent policy gate.
 
-STACK: LangGraph adapter + ChatAnthropic, model `claude-opus-4-8` (env RISK_MODEL) — a model
-DISTINCT from the Controller's `claude-sonnet-4-6`, for genuine independence on the gate. (We use
-LangGraph rather than the band AnthropicAdapter because that adapter's custom tools can't post;
-LangGraph's config-injected room id lets us deliver the Constraint deterministically — see
-docs/CASTELLAN_SDK_NOTES.md.)
+Runs on LangGraph + ChatAnthropic, model claude-opus-4-8 (env RISK_MODEL) — deliberately DISTINCT
+from the Controller's claude-sonnet-4-6, for genuine independence on the gate. (See
+docs/CASTELLAN_SDK_NOTES.md for why LangGraph rather than the band AnthropicAdapter.)
 
-M3 SCOPE: when @mentioned with a proposal, evaluate it against policy and post a Constraint
-(approve/reject + the violated rule) to @Controller. The LLM makes the judgment; Python validates
-+ posts it, and a deterministic fail-closed floor (connection/risk_tool.py +
-coordination/contributions.py) can downgrade an over-broad approve. Proposals come from synthetic
-fixtures in this milestone (no live specialist yet).
+When @mentioned with a proposal, it evaluates the proposal against policy and posts a Constraint
+(approve/reject + the violated rule) to @Controller. The LLM makes the judgment; Python validates +
+posts it, and a deterministic fail-closed floor (connection/risk_tool.py +
+coordination/contributions.py) can downgrade an over-broad approve.
 
 Run from the repo root:  cd castellan && uv run python agents/risk/risk.py
 Requires ANTHROPIC_API_KEY in .env and a `risk_policy:` block in agent_config.yaml.

@@ -3,10 +3,9 @@ Deterministic REST delivery of Scanner findings, shared by:
   - scripts/scan_and_post.py  (standalone CLI)
   - the Scanner agent's cloud_scan_and_emit_findings tool (Band @mention trigger)
 
-Posts AS the Scanner via the Band REST client, entirely outside the LLM/LangGraph generation
-loop. Detection + message formatting are done in code (cloud.scan), so values (e.g. "*") are
-byte-exact. Mentions resolve via the room participants endpoint (participant id, matched by
-handle) — the same resolution the SDK's own send_message performs.
+Posts AS the Scanner via the Band REST client. Detection + message formatting are done in code
+(cloud.scan), so values (e.g. "*") are byte-exact. Mentions resolve via the room participants
+endpoint (participant id, matched by handle) — the same resolution the SDK's own send_message performs.
 """
 
 from __future__ import annotations

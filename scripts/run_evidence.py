@@ -1,5 +1,5 @@
 """
-scripts/run_evidence.py — additive trigger for the Evidence Analyst (M6b).
+scripts/run_evidence.py — additive trigger for the Evidence Analyst.
 
 Posts a plain-language risk summary for a case to the room, AS the Evidence Analyst, via the shared
 deterministic core (cloud_describe -> ONE Featherless call -> sanitize -> post [evidence_summary]).

@@ -1,5 +1,5 @@
 """
-Castellan Mission Control — FastAPI read-bridge (M7 Pass 1).
+Castellan Mission Control — FastAPI read-bridge.
 
 ZERO-LOGIC PASS-THROUGH. Every endpoint calls the shared `connection.audit_reader` functions (which
 call the proven pure functions in `coordination.audit`) and serializes their output. This module
