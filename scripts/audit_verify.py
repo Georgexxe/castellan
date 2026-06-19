@@ -50,8 +50,10 @@ from types import SimpleNamespace
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("castellan.audit")
 
-# Agents whose scoped views, unioned, reconstruct the full case transcript.
-AGGREGATE_KEYS = ["controller", "risk_policy", "action"]
+# Agents whose scoped views, unioned, reconstruct the full case transcript. data_specialist (M6)
+# authors the contribution; including its own view ensures the proposal is captured even if the
+# mention-scoping of @Risk Policy ever changes.
+AGGREGATE_KEYS = ["controller", "risk_policy", "action", "data_specialist"]
 ANCHOR_DIR = _REPO_ROOT / ".audit"
 
 

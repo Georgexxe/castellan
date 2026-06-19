@@ -22,7 +22,6 @@ action:          # M4 — the Action Layer identity (posts the human-approval re
   agent_id: ""   # register "Action Layer" and add it to the room. (Or set ACTION_AGENT_KEY=controller
   api_key: ""    # to reuse an existing identity for the gate dry-run.)
 
-# --- Needed LATER; register when you reach that milestone ---
-# data_specialist:
-#   agent_id: ""
-#   api_key: ""
+data_specialist: # M6 — the live Data Specialist (S3); register "Data Specialist" and add it to the
+  agent_id: ""   # room. Runs on Anthropic via LangGraph (ANTHROPIC_API_KEY in .env; model DATA_MODEL).
+  api_key: ""    # Replaces the synthetic scripts/post_contribution.py stand-in.

@@ -15,6 +15,7 @@ from coordination.board import (
     case_key,
     case_markers,
     parse_findings_from_messages,
+    routed_marker,
 )
 from coordination.contributions import (
     canonical_json,
@@ -43,6 +44,7 @@ __all__ = [
     "case_id",
     "case_key",
     "case_markers",
+    "routed_marker",
     "parse_findings_from_messages",
     # contributions (proposals / risk floor / proposal identity / verdict correlation)
     "canonical_json",

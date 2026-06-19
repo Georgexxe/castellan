@@ -44,6 +44,15 @@ def case_markers(finding: Finding) -> str:
     return f"[case:{case_key(finding)}] [case_id:{case_id(finding)}]"
 
 
+def routed_marker(finding: Finding) -> str:
+    """The Controller's authoritative 'I routed this case' marker, stamped on an activation message.
+
+    Distinct from the general `[case_id:<hash>]` marker (which Risk constraints, specialist proposals,
+    the action ledger and the audit receipt also emit). Routing dedup keys on THIS marker only, so a
+    later message that merely references the case never falsely marks it routed (M6 hardening)."""
+    return f"[routed:{case_id(finding)}]"
+
+
 def _content(msg) -> str:
     """Read a message's content whether it's a dict or a Fern ChatMessage object."""
     if isinstance(msg, dict):
@@ -55,6 +64,7 @@ def _content(msg) -> str:
 # @mention prefix or surrounding prose (the Scanner posts "@controller\n\n```json ... ```").
 _FENCE_RE = re.compile(r"```(?:json)?\s*\n?(.*?)```", re.DOTALL)
 _CASE_ID_RE = re.compile(r"\[case_id:([0-9a-f]{8})\]")
+_ROUTED_RE = re.compile(r"\[routed:([0-9a-f]{8})\]")
 
 
 def extract_json_blocks(content: str) -> list[str]:
@@ -96,9 +106,14 @@ def parse_findings_from_messages(messages) -> dict[str, Finding]:
 
 
 def already_routed_ids(messages) -> set[str]:
-    """Set of case_id hashes already activated, read from `[case_id:<hash>]` markers in history.
-    Only the Controller emits these markers, so author-matching is unnecessary."""
+    """Set of case_id hashes the Controller has ALREADY ROUTED, from its `[routed:<hash>]` activation
+    markers (M6 hardening).
+
+    Keyed on the dedicated routed marker — NOT the general `[case_id:<hash>]` marker. As of M3+,
+    `[case_id:]` is emitted by many messages (Risk constraints, specialist proposals, the action
+    ledger, the audit receipt), so a case merely *referenced* by a downstream record would otherwise
+    be falsely treated as routed and the specialist would never be activated."""
     routed: set[str] = set()
     for m in messages:
-        routed.update(_CASE_ID_RE.findall(_content(m)))
+        routed.update(_ROUTED_RE.findall(_content(m)))
     return routed

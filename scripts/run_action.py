@@ -1,18 +1,30 @@
 """
 M4 driver — human-gated, reversible execution against LocalStack (no LLM in the action path).
 
-Flow for a proposal (synthetic fixture in M4):
+EXECUTION SOURCE (M6, correction 1): prefer the LIVE proposal posted by the Data Specialist and read
+from the room — NOT a fixture. The `proposal_id == good_s3` equality is then a VERIFICATION that the
+live specialist produced the identical safe object, not the source of the executed fix/rollback.
+
+  --latest-approved <cls:resource>  read the latest proposal for that case from the room and execute
+                                    THAT Contribution's fix/rollback (the verdict gate still requires
+                                    its latest Risk Constraint to be `approve`). [M6 path]
+  --proposal-id <pid>               same, selecting the proposal by its 12-hex proposal_id.
+  <fixture>                         back-compat: execute a synthetic fixture (good_s3, ...). Legacy.
+
+Flow (identical regardless of source):
   1. register_action (dry-run validates fix + rollback against the allowlist).
   2. capture the SEEDED_BASELINE before-state and assert it (== cloud/seed.py baseline).
-  3. Band human gate (round 1): you reply `@<action> APPROVE <proposal_id>` -> apply the fix;
-     `DENY` -> refuse, no mutation.
-  4. Band human gate (round 2): you reply `@<action> ROLLBACK <proposal_id>` -> apply the rollback.
-  5. Hard reversibility assertions (good_s3 / any put_public_access_block fix):
-        before == all-false (baseline);  after-apply == all-true;  after-rollback == before (byte-identical).
+  3. policy/verdict gate: refuse unless the proposal's latest Risk Constraint is `approve`.
+  4. Band human gate (round 1): reply `@<action> APPROVE <proposal_id>` -> apply; `DENY` -> refuse.
+  5. Band human gate (round 2): reply `@<action> ROLLBACK <proposal_id>` -> apply the rollback.
+  6. Hard reversibility assertions (any put_public_access_block fix):
+        before == all-false (baseline);  after-apply == all-true;  after-rollback == before.
 
 Usage:
     cd castellan
-    uv run python scripts/run_action.py <room_id> [fixture=good_s3]
+    uv run python scripts/run_action.py <room_id> --latest-approved data:acme-public-data
+    uv run python scripts/run_action.py <room_id> --proposal-id <pid>
+    uv run python scripts/run_action.py <room_id> [fixture=good_s3]   # legacy
 Prereqs: LocalStack up + seeded (`uv run python -m cloud.seed`); Action Layer agent registered and
 added to the room (creds under ACTION_AGENT_KEY, default "action"); you act as the human approver.
 """
@@ -44,7 +56,11 @@ from actions.ledger import (
 )
 from cloud.describe import cloud_describe
 from connection.poster import rest_base_url
-from coordination.contributions import latest_constraint_for_proposal, proposal_id
+from coordination.contributions import (
+    latest_constraint_for_proposal,
+    parse_contributions_from_messages,
+    proposal_id,
+)
 from coordination.fixtures import FIXTURES, get_fixture
 from coordination.models import Contribution
 
@@ -59,19 +75,84 @@ SEEDED_BASELINE = {
 ALL_TRUE = {k: True for k in SEEDED_BASELINE}
 
 
-async def main() -> None:
-    load_dotenv()
-    if len(sys.argv) < 2 or not sys.argv[1].strip():
-        raise SystemExit(f"usage: uv run python scripts/run_action.py <room_id> [{' | '.join(sorted(FIXTURES))}]")
-    room_id = sys.argv[1].strip()
-    fixture = (sys.argv[2].strip() if len(sys.argv) > 2 else "good_s3")
+_USAGE = (
+    "usage:\n"
+    "  uv run python scripts/run_action.py <room_id> --latest-approved <cls:resource>\n"
+    "  uv run python scripts/run_action.py <room_id> --proposal-id <pid>\n"
+    "  uv run python scripts/run_action.py <room_id> [fixture]   # legacy; fixtures: "
+    + " | ".join(sorted(FIXTURES))
+)
 
+
+async def _read_proposals_view(room_id: str) -> list:
+    """Read the room as Risk (the proposal @mentions @Risk Policy, so Risk's scoped view holds it)."""
+    _rid, risk_key = load_agent_config("risk_policy")
+    client = AsyncRestClient(api_key=risk_key, base_url=rest_base_url())
+    ctx = await client.agent_api_context.get_agent_chat_context(
+        chat_id=room_id, request_options=DEFAULT_REQUEST_OPTIONS
+    )
+    return list(ctx.data or [])
+
+
+async def _resolve_target(room_id: str, rest: list[str]):
+    """Resolve (case_key, Contribution, proposal_id, source) from the LIVE room (M6) or a fixture.
+
+    Returns Contribution=None if a requested room proposal isn't found.
+    """
+    flag = rest[0] if rest else ""
+    if flag in ("--latest-approved", "--proposal-id"):
+        if len(rest) < 2 or not rest[1].strip():
+            raise SystemExit(_USAGE)
+        arg = rest[1].strip()
+        messages = await _read_proposals_view(room_id)
+        props = parse_contributions_from_messages(messages)  # case_key -> latest proposal Contribution
+        if flag == "--latest-approved":
+            contrib = props.get(arg)
+            pid = proposal_id(arg, contrib.fix, contrib.rollback) if contrib else None
+            return arg, contrib, pid, f"room:latest-approved:{arg}"
+        for ck, c in props.items():  # --proposal-id
+            if proposal_id(ck, c.fix, c.rollback) == arg:
+                return ck, c, arg, f"room:proposal-id:{arg}"
+        return None, None, arg, f"room:proposal-id:{arg}"
+
+    # legacy: synthetic fixture
+    fixture = rest[0].strip() if rest else "good_s3"
     fx = get_fixture(fixture)
     contrib = Contribution(**fx["contribution"])
     case_key = f"{fx['cls']}:{fx['resource']}"
     pid = proposal_id(case_key, contrib.fix, contrib.rollback)
+    return case_key, contrib, pid, f"fixture:{fixture}"
+
+
+async def main() -> None:
+    load_dotenv()
+    args = sys.argv[1:]
+    if not args or not args[0].strip():
+        raise SystemExit(_USAGE)
+    room_id = args[0].strip()
+
+    case_key, contrib, pid, source = await _resolve_target(room_id, args[1:])
+    if contrib is None:
+        raise SystemExit(
+            f"No proposal to execute ({source}). The Data Specialist must have posted an "
+            f"approved proposal for this case/proposal_id first."
+        )
     aid = register_action(contrib.fix, contrib.rollback, requires_human=True, proposal_id=pid)
-    print(f"registered {fixture}: case={case_key} proposal_id={pid} fix={contrib.fix.action} rollback={contrib.rollback.action if contrib.rollback else None}")
+    print(
+        f"registered [{source}]: case={case_key} proposal_id={pid} "
+        f"fix={contrib.fix.action} rollback={contrib.rollback.action if contrib.rollback else None}"
+    )
+
+    # M6 verification: when executing a LIVE room proposal, assert it is the known-safe good_s3
+    # object — equality is a CHECK, not the execution source (we execute what was posted, above).
+    if source.startswith("room:"):
+        gx = get_fixture("good_s3")
+        gc = Contribution(**gx["contribution"])
+        good_pid = proposal_id(f"{gx['cls']}:{gx['resource']}", gc.fix, gc.rollback)
+        if pid == good_pid:
+            print(f"VERIFICATION ✓ live proposal_id == good_s3 fixture id ({good_pid}) — the live specialist produced the identical safe object.")
+        else:
+            print(f"VERIFICATION ⚠ live proposal_id {pid} != good_s3 id {good_pid} — executing the LIVE object exactly as posted.")
 
     # --- VERDICT GATE: only a Risk-APPROVED proposal may reach the human gate ---
     # The Constraint is addressed to @Controller, so we read it via the Controller's context view

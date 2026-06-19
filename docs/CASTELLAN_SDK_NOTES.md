@@ -240,6 +240,40 @@ The Controller is the most tool-intensive, multi-turn agent, so it's the most ex
 
 The **Action Layer** (`actions/`) and **Auditor** (`audit/`) are plain Python modules, not Band agents. They're invoked by the orchestration backend and the human-gate endpoint. They don't use adapters or platform tools. Keep them framework-free and deterministic.
 
+> **AS BUILT (M6) — live Data Specialist (`agents/specialists/data/`, `connection/data_tool.py`,
+> `coordination/remediations.py`):**
+> - **Transport matrix decided this (empirical, not assumed).** Probes: OpenAI-SDK and
+>   `ChatOpenAI(base_url=…)` both reach AI/ML API and **authenticate**, but the account is **out of
+>   funds** (HTTP 403 "out of funds") so it cannot complete a call; Featherless and Anthropic return
+>   completions. `ChatOpenAI(base_url=…)` honors the custom base_url and does **not** fall back to
+>   OpenAI (the CrewAI `LLM(base_url)` bug #5139 does not affect `langchain_openai`). **Chosen: LangGraph
+>   + `ChatAnthropic` (claude-sonnet-4-6, env `DATA_MODEL`)** — proven live, **zero new deps**
+>   (`langchain_anthropic` already installed). **AI/ML API and CrewAI are DEFERRED** (AI/ML: top up the
+>   balance then re-probe a valid model string — transport already proven; `litellm` not installed,
+>   never reached). **Honest framing: "Anthropic-backed Data Specialist with deterministic remediation
+>   building + validation" — NOT CrewAI, NOT AI/ML API.**
+> - **Deterministic-first division.** The LLM only **triggers**: it reads the routed case and calls
+>   `data_emit_proposal(diagnosis)` once. **Python does everything security-critical**: reads the case
+>   from the `[case:cls:resource]` marker, inspects the LIVE bucket (`cloud.describe.cloud_describe`),
+>   **builds** the reversible fix+rollback (`build_data_remediation`), **validates**
+>   (`structural_violations`), and **posts** the `type=proposal` Contribution to `@Risk Policy` — byte
+>   format identical to `post_contribution.py`, so Risk/M4/M5 see it identically.
+> - **Evidence-grounded + fail-closed.** The rollback restores the **observed prior** public-access
+>   block. The all-false seed baseline is used **only** when `cloud_describe` explicitly returns
+>   `public_access_block is None`; an **error / timeout / malformed / missing-key** read is **NOT** a
+>   None case → the tool **refuses to propose** ("no reliable evidence → no proposal"). Never
+>   substitutes a baseline on a failed read.
+> - **Idempotent.** Before posting, the tool scans the room for an existing `[case][proposal_id]`
+>   proposal and returns "already proposed" rather than double-posting.
+> - **proposal_id invariant (verification, not execution).** For the seeded `acme-public-data`, the
+>   built fix/rollback are byte-identical to `_GOOD_S3`, so the live `proposal_id` **equals** the
+>   `good_s3` id. `scripts/run_action.py --latest-approved <cls:resource>` (or `--proposal-id <pid>`)
+>   **reads and executes the room's approved Contribution itself** (the verdict gate still requires
+>   `approve`); the `== good_s3` equality is printed as a **VERIFICATION** that the live specialist
+>   produced the identical safe object — the synthetic fixture is **out of the execution loop**.
+> - `data_specialist` is added to `audit_verify.py` `AGGREGATE_KEYS` so the author's own scoped view
+>   is unioned into the reconstructed transcript.
+
 > **AS BUILT (M5) — provable audit chain (`coordination/audit.py`, `scripts/audit_verify.py`):**
 > - **Rebuilt from the blackboard, no side-channel store.** Band scopes each agent's
 >   `get_agent_chat_context` to its own + @mention-ed messages, so the full transcript is
@@ -260,11 +294,13 @@ The **Action Layer** (`actions/`) and **Auditor** (`audit/`) are plain Python mo
 >   produced by running the **actual Scanner (M1)**, which posts the S3 Finding for
 >   `data:acme-public-data` (case_id `575e729d`); `classify_records` recognizes a real Scanner Finding
 >   message (`@handle` + fenced ```json``` Finding body) as `case_open` and derives the same case_id.
-> - **Genuine vs synthetic record provenance (this build):** `case_open` (real Scanner Finding),
->   `constraint` (real Risk verdict), `human_approval`/`human_rollback` (real human Band replies), and
->   `action_applied`/`action_rolled_back` (real LocalStack execution outcomes) are **genuine**. Only the
->   **`contribution` is synthetic** (fixture posted via `scripts/post_contribution.py`), pending the
->   live CrewAI specialists in **M6**. A **manual / human-authored `case_open`** (a human pasting a
+> - **Genuine vs synthetic record provenance:** `case_open` (real Scanner Finding), `constraint`
+>   (real Risk verdict), `human_approval`/`human_rollback` (real human Band replies), and
+>   `action_applied`/`action_rolled_back` (real LocalStack execution outcomes) are **genuine**. As of
+>   **M6 the `contribution` is also genuine** for the data path — authored by the live Data Specialist
+>   (`agents/specialists/data/`), not `scripts/post_contribution.py`. **No synthetic record remains in
+>   the data lifecycle.** (`post_contribution.py` stays only as a fixture harness / for the
+>   not-yet-built IAM & Network paths.) A **manual / human-authored `case_open`** (a human pasting a
 >   Finding into the room) is a **recognized valid mode** the classifier would accept — but it is **not
 >   built/exercised** here; the certified path uses the real Scanner.
 > - **External anchor.** `--anchor` writes the head to `.audit/<room_id>.head` (out-of-band, gitignored)

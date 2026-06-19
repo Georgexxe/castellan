@@ -40,6 +40,7 @@ from coordination.board import (
     case_key,
     case_markers,
     parse_findings_from_messages,
+    routed_marker,
 )
 from coordination.models import Finding
 
@@ -75,7 +76,7 @@ def _activation_message(finding: Finding, handle: str) -> str:
         f"- resource: {finding.resource}\n"
         f"- finding: {finding.description}\n"
         f"Load the case context, then propose a reversible fix + rollback addressed to the Controller.\n"
-        f"{case_markers(finding)}"
+        f"{case_markers(finding)} {routed_marker(finding)}"
     )
 
 
