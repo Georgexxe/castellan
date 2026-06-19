@@ -240,6 +240,48 @@ The Controller is the most tool-intensive, multi-turn agent, so it's the most ex
 
 The **Action Layer** (`actions/`) and **Auditor** (`audit/`) are plain Python modules, not Band agents. They're invoked by the orchestration backend and the human-gate endpoint. They don't use adapters or platform tools. Keep them framework-free and deterministic.
 
+> **AS BUILT (M5) — provable audit chain (`coordination/audit.py`, `scripts/audit_verify.py`):**
+> - **Rebuilt from the blackboard, no side-channel store.** Band scopes each agent's
+>   `get_agent_chat_context` to its own + @mention-ed messages, so the full transcript is
+>   reconstructed by **aggregating the scoped views of controller + risk_policy + action** (union by
+>   message id, sorted by `(inserted_at, source_message_id)` — tiebreaker mandatory for a stable head).
+> - **Hash covers attribution.** `entry_hash = sha256(prev + canonical_json({record_type, case_id,
+>   proposal_id, sender(=sender_id), sender_type, inserted_at, source_message_id, payload}))` — reuses
+>   the single `canonical_json` (M4). Identity + timestamps are inside the hash, so "who approved /
+>   when" can't be forged while the chain still verifies. Seven record types
+>   (case_open→contribution→constraint→human_approval→action_applied→human_rollback→action_rolled_back);
+>   a valid ordered **prefix** is accepted, a genuine gap or an `action_*` without its authorizing
+>   human decision (same proposal_id) RAISES.
+> - **`case_open` is REQUIRED — a chain cannot be certified without a detection record.** The model
+>   was deliberately NOT relaxed to make it optional: a case with no `case_open` is an incomplete
+>   chain, and `classify_records` RAISES `AuditError` for it. `scripts/audit_verify.py` **catches
+>   `AuditError` and prints a clean `AUDIT INCOMPLETE — cannot certify chain: …` diagnostic** (exit 2)
+>   rather than a traceback — a security tool refuses to certify gracefully. The live `case_open` is
+>   produced by running the **actual Scanner (M1)**, which posts the S3 Finding for
+>   `data:acme-public-data` (case_id `575e729d`); `classify_records` recognizes a real Scanner Finding
+>   message (`@handle` + fenced ```json``` Finding body) as `case_open` and derives the same case_id.
+> - **Genuine vs synthetic record provenance (this build):** `case_open` (real Scanner Finding),
+>   `constraint` (real Risk verdict), `human_approval`/`human_rollback` (real human Band replies), and
+>   `action_applied`/`action_rolled_back` (real LocalStack execution outcomes) are **genuine**. Only the
+>   **`contribution` is synthetic** (fixture posted via `scripts/post_contribution.py`), pending the
+>   live CrewAI specialists in **M6**. A **manual / human-authored `case_open`** (a human pasting a
+>   Finding into the room) is a **recognized valid mode** the classifier would accept — but it is **not
+>   built/exercised** here; the certified path uses the real Scanner.
+> - **External anchor.** `--anchor` writes the head to `.audit/<room_id>.head` (out-of-band, gitignored)
+>   AND posts the in-room `[audit_head]` receipt; **refuses to overwrite an existing anchor unless
+>   `--force`** (re-anchoring a tampered room would mint a fresh "valid" head). `--verify` (default) is
+>   side-effect-free and compares against the file anchor; `--tamper` mutates a record in memory and
+>   shows the head break + first broken entry.
+> - **Reversibility is proven from the chain**, not just asserted: the verifier recomputes
+>   `restored_matches_original` from chain-resident data (`action_applied.state_before` vs
+>   `action_rolled_back.state_after_rollback`).
+> - **Durable idempotency** (retires M4's deferred boundary, no DB): before executing, the Action
+>   Layer scans room history for `[action_applied]` / `[action_rolled_back]` for the proposal_id and
+>   refuses a duplicate (survives restart; keyed on proposal_id so a revised proposal isn't blocked).
+> - **Honest tamper-evidence scope:** tamper-evidence is relative to the committed head; the file is
+>   the demo anchor; **signing the head with an Action-Layer key is the production hardening path
+>   (not built).**
+
 > **AS BUILT (M4) — Action Layer:**
 > - **Executor** (`actions/executor.py`): deterministic, **no LLM**. `register_action` / `apply_action`
 >   / `rollback_action` (AGENTS §3). Runs only **allowlisted** boto3 actions via the reused

@@ -17,6 +17,7 @@ from coordination.board import (
     parse_findings_from_messages,
 )
 from coordination.contributions import (
+    canonical_json,
     latest_constraint_for_proposal,
     latest_proposal,
     parse_constraint,
@@ -44,6 +45,7 @@ __all__ = [
     "case_markers",
     "parse_findings_from_messages",
     # contributions (proposals / risk floor / proposal identity / verdict correlation)
+    "canonical_json",
     "latest_constraint_for_proposal",
     "latest_proposal",
     "parse_constraint",

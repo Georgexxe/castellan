@@ -36,6 +36,12 @@ from band.client.rest import AsyncRestClient, DEFAULT_REQUEST_OPTIONS
 
 from actions.executor import apply_action, record_approval, register_action, rollback_action
 from actions.gate import request_and_await_decision
+from actions.ledger import (
+    already_applied_in_room,
+    already_rolled_back_in_room,
+    post_action_applied,
+    post_action_rolled_back,
+)
 from cloud.describe import cloud_describe
 from connection.poster import rest_base_url
 from coordination.contributions import latest_constraint_for_proposal, proposal_id
@@ -110,6 +116,11 @@ async def main() -> None:
     self_agent_id, api_key = load_agent_config(agent_key)
     client = AsyncRestClient(api_key=api_key, base_url=rest_base_url())
 
+    # --- DURABLE idempotency (M5): scan room history; refuse if already applied (survives restart) ---
+    if await already_applied_in_room(client, room_id, pid):
+        print(f"REFUSED (durable idempotency): [action_applied] for proposal {pid} already in the room. No second mutation.")
+        return
+
     # --- Gate round 1: APPROVE -> apply fix ; DENY -> refuse ---
     r1 = await request_and_await_decision(
         client, room_id, pid,
@@ -123,7 +134,8 @@ async def main() -> None:
         print(f"no APPROVE ({r1.get('reason')}) -> nothing applied."); return
 
     record_approval(aid)
-    print("apply:", apply_action(aid))
+    apply_res = apply_action(aid)
+    print("apply:", apply_res)
     after_apply = None
     if is_s3_pab:
         after_apply = pab()
@@ -132,7 +144,7 @@ async def main() -> None:
 
     # --- In-process idempotency re-trigger (same process; module-level _APPLIED guard) ---
     # A second apply MUST short-circuit at the guard: status "already_applied", NO boto3 call,
-    # state unchanged. (Across separate runs the in-memory set resets — deferred M5 durable boundary.)
+    # state unchanged. (Durable across-restart idempotency is the room-scan above.)
     second = apply_action(aid)
     print("apply (2nd, idempotency re-trigger):", second)
     assert second["status"] == "already_applied", f"2nd apply must be a no-op (guarded): {second}"
@@ -141,6 +153,10 @@ async def main() -> None:
         print("state after 2nd apply:", after_second)
         assert after_second == after_apply == ALL_TRUE, f"2nd apply changed state: {after_second}"
         print("IDEMPOTENCY (in-process) PASSED: 2nd apply -> already_applied, no boto3 call, state unchanged.")
+
+    # --- M5: post the action_applied outcome record to the room (chain-captured) ---
+    tool_call = {"action": contrib.fix.action, "target": contrib.fix.target, "params": contrib.fix.params}
+    await post_action_applied(client, room_id, case_key, pid, aid, tool_call, apply_res, before, after_apply)
 
     # --- Gate round 2: ROLLBACK -> revert (reversibility) ---
     r2 = await request_and_await_decision(
@@ -151,12 +167,29 @@ async def main() -> None:
     if r2.get("decision") != "ROLLBACK":
         print(f"no ROLLBACK ({r2.get('reason')}) -> fix left applied (state changed)."); return
 
-    print("rollback:", rollback_action(aid))
+    # --- DURABLE idempotency for rollback ---
+    if await already_rolled_back_in_room(client, room_id, pid):
+        print(f"REFUSED (durable idempotency): [action_rolled_back] for proposal {pid} already in the room.")
+        return
+
+    rollback_res = rollback_action(aid)
+    print("rollback:", rollback_res)
+    after_rollback = None
     if is_s3_pab:
         after_rollback = pab()
         print("state after-rollback:", after_rollback)
         assert after_rollback == SEEDED_BASELINE == before, f"after-rollback != baseline/before: {after_rollback}"
         print("REVERSIBILITY ASSERTION PASSED: before == after-rollback (byte-identical); apply flipped baseline -> all-true.")
+
+    # --- M5: post the action_rolled_back outcome record (restored_matches_original from chain-resident data) ---
+    rb_tool_call = (
+        {"action": contrib.rollback.action, "target": contrib.rollback.target, "params": contrib.rollback.params}
+        if contrib.rollback else None
+    )
+    restored = await post_action_rolled_back(
+        client, room_id, case_key, pid, aid, rb_tool_call, rollback_res, after_apply, after_rollback
+    )
+    print(f"action_rolled_back posted (restored_matches_original={restored}).")
 
 
 if __name__ == "__main__":

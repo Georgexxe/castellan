@@ -5,6 +5,9 @@ agent_config.yaml
 # LocalStack data volume
 .localstack/
 
+# M5 audit anchors (local out-of-band trusted heads)
+.audit/
+
 # Python / uv
 .venv/
 __pycache__/
