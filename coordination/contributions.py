@@ -17,7 +17,7 @@ import hashlib
 import json
 import re
 
-from coordination.models import ActionSpec, Contribution
+from coordination.models import ActionSpec, Constraint, Contribution
 
 _FENCE_RE = re.compile(r"```(?:json)?\s*\n?(.*?)```", re.DOTALL)
 _CASE_RE = re.compile(r"\[case:([^\]]+)\]")  # captures "cls:resource"
@@ -122,6 +122,43 @@ def parse_contributions_from_messages(messages) -> dict[str, Contribution]:
         if case_key not in latest or order_key > latest[case_key][0]:
             latest[case_key] = (order_key, contrib)
     return {ck: c for ck, (_ok, c) in latest.items()}
+
+
+def parse_constraint(content: str) -> Constraint | None:
+    """Parse the first fenced JSON block that validates as a Constraint (verdict carrier).
+
+    A Contribution block won't validate as a Constraint (missing rule/rationale/verdict), so this
+    only matches actual Risk Constraint messages.
+    """
+    for m in _FENCE_RE.finditer(content or ""):
+        try:
+            data = json.loads(m.group(1).strip())
+        except (ValueError, TypeError):
+            continue
+        if not isinstance(data, dict):
+            continue
+        try:
+            return Constraint(**data)
+        except Exception:
+            continue
+    return None
+
+
+def latest_constraint_for_proposal(messages, proposal_id: str) -> Constraint | None:
+    """Latest Risk Constraint (by inserted_at) for a given proposal_id, matched via its
+    [proposal_id:<hash>] marker. Used by the Action Layer's verdict gate (reject -> refuse)."""
+    best = None  # (order_key, Constraint)
+    for idx, m in enumerate(messages):
+        content = _content(m)
+        if proposal_id_from_content(content) != proposal_id:
+            continue
+        constraint = parse_constraint(content)
+        if constraint is None:
+            continue
+        order_key = (_inserted_at(m), idx)
+        if best is None or order_key > best[0]:
+            best = (order_key, constraint)
+    return best[1] if best else None
 
 
 def latest_proposal(messages) -> tuple[str, Contribution] | None:

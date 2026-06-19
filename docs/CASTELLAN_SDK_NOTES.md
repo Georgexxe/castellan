@@ -240,6 +240,26 @@ The Controller is the most tool-intensive, multi-turn agent, so it's the most ex
 
 The **Action Layer** (`actions/`) and **Auditor** (`audit/`) are plain Python modules, not Band agents. They're invoked by the orchestration backend and the human-gate endpoint. They don't use adapters or platform tools. Keep them framework-free and deterministic.
 
+> **AS BUILT (M4) — Action Layer:**
+> - **Executor** (`actions/executor.py`): deterministic, **no LLM**. `register_action` / `apply_action`
+>   / `rollback_action` (AGENTS §3). Runs only **allowlisted** boto3 actions via the reused
+>   `cloud/client.get_client` — each action has its own `build_kwargs` (`target` → Bucket/RoleName/
+>   GroupId; IAM/bucket policy docs `json.dumps`'d). The allowlist lookup **gates every `getattr`**
+>   (an unknown action is refused before dispatch). Idempotency is `proposal_id`-keyed via in-memory
+>   sets (`_APPLIED`/`_ROLLEDBACK`); **durable idempotency is deferred to M5** (audit chain).
+> - **Three gates, in order** (`scripts/run_action.py`): (1) **policy/verdict gate** — refuse unless
+>   the latest Risk Constraint for the `proposal_id` is `approve`; a `reject` (or no verdict) blocks
+>   execution. The Constraint is addressed to `@Controller`, so the Action Layer reads it via the
+>   **Controller's context view** (`agent_api_context`), correlating by the `[proposal_id]` marker.
+>   (2) **human gate** (`actions/gate.py`) — post an approval request and poll for a human reply.
+>   ⚠️ `get_agent_chat_context` returns only the agent's own messages + texts that **@mention it**,
+>   so the human MUST `@mention` the Action agent in their reply; the matcher is exact/anchored
+>   (`^(?:@\S+\s+)*(APPROVE|DENY|ROLLBACK)\s+<proposal_id>\s*$`) and humans are detected by
+>   `sender_type != "agent"`. (3) the executor's own `requires_human` approval record.
+> - **Reversibility** is executable and asserted (`run_action.py`): for `good_s3`, before == all-false
+>   seed baseline → after-apply == all-true → after-rollback == before (byte-identical), via
+>   `cloud_describe` readback against a `SEEDED_BASELINE` constant.
+
 ## 10. Secret file templates
 
 `.env` (gitignored):
