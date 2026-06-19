@@ -1,10 +1,9 @@
 """
-M5 auditor — rebuild the audit chain from Band room history and verify it against an out-of-band
-anchor; tamper demo. Pure-chain logic lives in coordination.audit; this script does the Band I/O.
-
-Because Band scopes each agent's context to its own + @mention-ed messages, the full transcript is
-reconstructed by AGGREGATING the scoped views of controller + risk_policy + action (union by
-message id, sorted by (inserted_at, id)).
+M5 auditor (CLI) — rebuild the audit chain from Band room history and verify it against an
+out-of-band anchor; tamper demo. The reconstruction + verify + tamper logic lives in the SHARED
+module `connection.audit_reader` (imported by BOTH this CLI and the FastAPI read-bridge), which in
+turn calls the pure functions in `coordination.audit`. This script only does CLI argument handling,
+printing, and the guarded `--anchor` write path.
 
 Modes (room is the untrusted medium; the file anchor is authoritative):
   (default) --verify  : rebuild, compare head to the existing anchor file -> VALID/BREAK. No writes.
@@ -23,10 +22,10 @@ Usage:
 from __future__ import annotations
 
 import asyncio
-import copy
 import logging
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
@@ -43,63 +42,36 @@ from band.client.rest import (
 )
 
 from connection.poster import rest_base_url
-from coordination.audit import AuditError, build_chain, classify_records, first_divergence, verify
+from connection.audit_reader import ANCHOR_DIR, aggregate_messages, anchor_path, tamper_room
+from coordination.audit import AuditError, build_chain, classify_records, verify
 from coordination.board import case_markers
-from types import SimpleNamespace
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("castellan.audit")
-
-# Agents whose scoped views, unioned, reconstruct the full case transcript. data_specialist (M6)
-# authors the contribution; including its own view ensures the proposal is captured even if the
-# mention-scoping of @Risk Policy ever changes.
-AGGREGATE_KEYS = ["controller", "risk_policy", "action", "data_specialist"]
-ANCHOR_DIR = _REPO_ROOT / ".audit"
 
 
 def _g(msg, name):
     return msg.get(name) if isinstance(msg, dict) else getattr(msg, name, None)
 
 
-async def _fetch_all(api_key: str, room_id: str) -> list:
-    client = AsyncRestClient(api_key=api_key, base_url=rest_base_url())
-    out, page = [], 1
-    while True:
-        resp = await client.agent_api_context.get_agent_chat_context(
-            chat_id=room_id, page=page, page_size=100, request_options=DEFAULT_REQUEST_OPTIONS
-        )
-        batch = list(resp.data or [])
-        out.extend(batch)
-        if len(batch) < 100:
-            break
-        page += 1
-    return out
+def _safe(s: str, fallback: str) -> str:
+    """Return *s* if the active stdout encoding can render it, else *fallback* (ASCII).
 
-
-async def aggregate_messages(room_id: str) -> list:
-    """Union of {controller, risk_policy, action} scoped contexts, deduped by message id."""
-    by_id: dict[str, object] = {}
-    for key in AGGREGATE_KEYS:
-        try:
-            _id, api_key = load_agent_config(key)
-        except Exception as e:
-            log.warning("skipping %s context (no creds): %s", key, e)
-            continue
-        for m in await _fetch_all(api_key, room_id):
-            by_id[str(_g(m, "id"))] = m
-    return list(by_id.values())
-
-
-def _anchor_path(room_id: str) -> Path:
-    safe = room_id.replace("/", "_")
-    return ANCHOR_DIR / f"{safe}.head"
+    Keeps the proof-bearing text (head, VALID/BREAK, seq) byte-identical while never crashing on a
+    Windows cp1252 console over the decorative glyphs (checkmark/cross/ellipsis)."""
+    try:
+        s.encode(sys.stdout.encoding or "utf-8")
+        return s
+    except (UnicodeEncodeError, LookupError):
+        return fallback
 
 
 def _print_chain(records) -> None:
+    ell = _safe("…", "...")
     for e in build_chain(records):
         r = e.record
         print(f"  [{e.seq}] {r.record_type:18} case={r.case_id} pid={r.proposal_id} "
-              f"by={r.sender_name!r}/{r.sender_type} hash={e.entry_hash[:12]}…")
+              f"by={r.sender_name!r}/{r.sender_type} hash={e.entry_hash[:12]}{ell}")
 
 
 async def main() -> None:
@@ -126,7 +98,7 @@ async def main() -> None:
     head = build_chain(records)[-1].entry_hash if records else "0" * 64
     print(f"reconstructed {len(records)} record(s) from room {room_id}; head={head}")
     _print_chain(records)
-    anchor_file = _anchor_path(room_id)
+    anchor_file = anchor_path(room_id)
 
     if mode == "anchor":
         if anchor_file.exists() and not force:
@@ -181,27 +153,20 @@ async def main() -> None:
     print(f"anchor={anchor}")
     print(f"reversibility: {result['reversibility']} (ok={result['reversibility_ok']})")
     if result["ok"]:
-        print(f"VALID ✓  recomputed head == anchor ({head})")
+        print(f"VALID {_safe(chr(0x2713), 'OK')}  recomputed head == anchor ({head})")
     else:
-        print(f"BREAK ✗  recomputed head ({head}) != anchor ({anchor})")
+        print(f"BREAK {_safe(chr(0x2717), 'X')}  recomputed head ({head}) != anchor ({anchor})")
 
     if mode == "tamper":
-        original_chain = build_chain(records)
-        tampered = copy.deepcopy(records)
-        # mutate one mid-chain record's payload to simulate sophisticated tampering
-        target = next((r for r in tampered if r.record_type == "constraint"), tampered[len(tampered) // 2])
-        before = copy.deepcopy(target.payload)
-        target.payload["rule"] = (target.payload.get("rule", "") or "") + " [TAMPERED]"
-        print(f"\n--- TAMPER: mutated record_type={target.record_type} payload.rule ---")
-        tampered_chain = build_chain(tampered)
-        new_head = tampered_chain[-1].entry_hash
-        idx = first_divergence(original_chain, tampered_chain)
-        if new_head == anchor:
+        # The tamper computation lives in the shared module (single source of truth); print from it.
+        t = tamper_room(records, anchor)
+        print(f"\n--- TAMPER: mutated record_type={t['mutated_record_type']} payload.rule ---")
+        if not t["break"]:
             print("UNEXPECTED: tampered head still matches anchor")
         else:
-            print(f"BREAK ✗  tampered head ({new_head}) != anchor ({anchor})")
-            print(f"first broken entry: seq {idx} (record_type={original_chain[idx].record.record_type}); "
-                  f"all {len(tampered_chain) - idx - 1} entries after it are invalidated (chain property).")
+            print(f"BREAK {_safe(chr(0x2717), 'X')}  tampered head ({t['tampered_head']}) != anchor ({anchor})")
+            print(f"first broken entry: seq {t['first_broken_seq']} (record_type={t['first_broken_type']}); "
+                  f"all {t['invalidated_after']} entries after it are invalidated (chain property).")
 
 
 if __name__ == "__main__":
