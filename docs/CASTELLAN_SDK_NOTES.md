@@ -78,7 +78,7 @@ Each agent is its **own process / file / container**. Run with `uv run python <a
 >   Reason: the LLM relay path dropped Featherless connections mid-stream and could corrupt values.
 > - **Featherless returns at M6 (now built)** as a separate, NON-BLOCKING **Evidence Analyst / Remediation
 >   Explainer** (reads the deterministic Finding JSON, posts risk context). It is never the Risk
->   gate — Risk stays Anthropic. See `CASTELLAN_BUILD_PLAN.md` → "Build deviations".
+>   gate — Risk stays Anthropic.
 
 ```python
 from langchain_openai import ChatOpenAI

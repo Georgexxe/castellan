@@ -1,93 +1,167 @@
-# Castellan
+# Castellan — Mission Control
 
-Multi-agent cloud-security remediation on the [Band](https://app.band.ai) platform.
-Specialist agents detect live cloud misconfigurations, collaborate on a shared
-**remediation blackboard**, get **constrained** by a policy agent, **gated** by a human,
-and execute as **reversible** actions — every step sealed in a tamper-evident audit chain.
+> Autonomous cloud-security remediation that an auditor can trust.
 
-See [`docs/`](docs/) for the full spec. `docs/CASTELLAN_SDK_NOTES.md` is authoritative
-for all Band SDK details; `docs/CASTELLAN_BUILD_PLAN.md` tracks milestones and build deviations.
+Five AI agents coordinate in one Band room to take a cloud-security misconfiguration from detection to a reversed, audited fix. Every remediation is **gated by a human**, **reversible to the exact prior state**, and sealed in a **tamper-evident SHA-256 audit chain** reconstructed from the Band room itself.
 
-> **Status: M1 complete.** The **Scanner** agent runs a real cloud scan against LocalStack and
-> posts the structured findings into a Band room, addressed to the Controller. Detection,
-> finding formatting, and delivery are **deterministic Python** — the LLM only triggers the scan.
-> M2+ (Controller, specialists, Risk gate, action layer, audit chain) are not built yet.
+Built for Track 3 — Regulated & High-Stakes Workflows — Band of Agents Hackathon 2026.
 
-## Verified SDK facts (band-sdk 1.0.0, this install)
+---
 
-| Thing | Value |
-| --- | --- |
-| pip package | `band-sdk` (with extras: `[langgraph] [crewai] [pydantic-ai] [anthropic]`) |
-| import module | **`band`** (`thenvoi` is not importable) |
-| platform tool prefix | **`band_`** (e.g. `band_send_message`) |
-| connection env vars | `BAND_WS_URL`, `BAND_REST_URL` (default to app.band.ai if unset) |
-| config loader | `band.config.load_agent_config(key)` reads `./agent_config.yaml` from CWD |
+## What it does
 
-## How the Scanner works (M1)
+When a cloud misconfiguration is detected, Castellan walks it through a disciplined pipeline:
 
-The Scanner is a real Band agent (LangGraph + Featherless), but the security work is
-deterministic, not model-generated:
+```
+Scanner → Controller → Data Specialist → Risk Policy → Human gate → Action Layer → Audit
+```
 
-1. A human posts **`@Scanner scan now`** in the room. The Featherless model's only job is to
-   call one tool: `cloud_scan_and_emit_findings`.
-2. That tool (in [cloud/scan.py](cloud/scan.py) + [connection/poster.py](connection/poster.py))
-   inspects the cloud target, builds one `Finding` per real misconfiguration **in code**, and
-   posts each as a fenced ```json message to the Controller via the Band REST client — outside
-   the LLM loop. The LLM never authors JSON, so values (e.g. an IAM `"*"`) are byte-exact.
+Each step is a real message in the Band room. The audit chain is reconstructed *from that room* — not written to a separate log — so it can never disagree with what the agents actually did, and Band is load-bearing, not a wrapper.
 
-Detection (read-only, [cloud/scan.py](cloud/scan.py)) covers three classes:
-`data` (public S3 bucket), `iam` (inline policy `Action:"*"`/`Resource:"*"`),
-`network` (security group inbound `0.0.0.0/0` on port 22).
+A **Mission Control** UI lets anyone inspect the full case, walk the sealed chain, and run a live tamper test: mutate one record and watch the chain break at that record and cascade through every downstream entry.
 
-> Featherless currently only *triggers* the Scanner. It returns at **M6** as a separate,
-> non-blocking **Evidence Analyst** (see `docs/CASTELLAN_BUILD_PLAN.md` → Build deviations).
+---
 
-## Setup
+## Agents
+
+| Agent | Model | Role |
+|---|---|---|
+| Scanner | deterministic | Detects misconfigurations, opens a case in the Band room |
+| Controller | Anthropic Claude | Routes each case to the right specialist |
+| Data Specialist | Anthropic Claude | Inspects the resource live, proposes a reversible fix + rollback |
+| Risk Policy | Anthropic Claude + deterministic floor | Vets every proposal; fail-closed before LLM weighs in |
+| Action Layer | deterministic | Executes only after human approval; reversible and idempotent |
+| Evidence Analyst | Featherless AI (Qwen 2.5) | Posts plain-language case summary for the human approver |
+
+---
+
+## Design decisions
+
+**Deterministic-first.** The LLM only triggers — it proposes a fix, judges a risk, or summarises evidence. Every security-critical decision (validation, gating, execution, hashing) is deterministic Python. A model hiccup degrades to *no action*, never a corrupted one.
+
+**A hash chain that is actually proof.** Two corrections most audit chains skip:
+
+1. **Hash the attribution, not just the payload.** Sender, role, and timestamp are inside the hash — so *who approved* is part of what's proven, not loose metadata that can be quietly rewritten.
+2. **Anchor the head out-of-band.** Storing the trusted head inside the same room you're declaring untrusted is circular. The anchor lives outside the room; a room-level attacker can't reach it.
+
+**Audit reconstructed from Band.** The hash chain is rebuilt from the Band room's message history, not a side-channel database. This ties the proof directly to the coordination medium and means the audit can't drift from what the agents actually did.
+
+---
+
+## Proof
+
+Live Band room: `eb4379c9-165a-4139-bc8a-dd166f8280d8`
+
+```
+head   : 9f55f86d84ddbd016aeba56fd45ab2f50e91b1a8dd64e8d8c2317ddd82946919
+result : VALID
+tamper : first broken seq = 4  (Risk Verdict)
+```
+
+Verified with:
+```bash
+uv run python scripts/audit_verify.py eb4379c9-165a-4139-bc8a-dd166f8280d8
+uv run python scripts/audit_verify.py --tamper eb4379c9-165a-4139-bc8a-dd166f8280d8
+```
+
+---
+
+## Stack
+
+- **Band** — multi-agent coordination and system of record
+- **Anthropic Claude** — Controller, Data Specialist, Risk Policy
+- **Featherless AI** — Evidence Analyst (Qwen/Qwen2.5-7B-Instruct)
+- **LangGraph + LangChain** — agent runtime
+- **Python** — all deterministic safety-critical logic
+- **FastAPI** — read-only bridge between Mission Control and the audit functions
+- **Next.js + Tailwind CSS** — Mission Control frontend
+
+---
+
+## Running locally
+
+### Prerequisites
+
+- Python 3.12+ with `uv`
+- Node.js 18+
+- LocalStack (for the mock cloud environment)
+- A Band account with agent handles configured
+
+### Setup
 
 ```bash
+# Clone and install
+git clone https://github.com/Georgexxe/castellan
 cd castellan
-uv sync                                            # install deps from pyproject.toml / uv.lock
-cp .env.example .env                               # then fill in
-cp agent_config.example.yaml agent_config.yaml     # then fill in
+uv sync
+
+# Copy and fill in your credentials
+cp .env.example .env
+cp agent_config.example.yaml agent_config.yaml
+# Edit both files with your Band handles, Anthropic key, and Featherless key
 ```
 
-Fill in:
-- `.env` → `FEATHERLESS_API_KEY` (required). `BAND_WS_URL` / `BAND_REST_URL` only if your Band
-  isn't the standard hosted app.band.ai.
-- `agent_config.yaml` → `scanner.agent_id`, `scanner.api_key` (from registering "Scanner" as an
-  External Agent in the Band dashboard). Also register a **Controller** agent and add it to the
-  room so the Scanner's findings have a valid mention target.
+### Seed the mock cloud
 
-`.env` and `agent_config.yaml` are gitignored — never commit them.
-
-## Run (M1)
-
-**1. Start the cloud target (LocalStack) and seed the demo misconfigurations:**
 ```bash
-cd castellan
-docker compose up -d localstack
-uv run python -m cloud.seed       # creates: public S3 bucket, over-permissive IAM role, SG open 0.0.0.0/0:22
+docker compose up -d          # starts LocalStack
+uv run python -m cloud.seed
 ```
 
-**2a. Drive it through Band (the real path):** start the Scanner, then trigger it from the room.
-```bash
-uv run python agents/scanner/scanner.py
-```
-In a Band room (with **Scanner** + **Controller** as participants), post **`@Scanner scan now`**.
-The Scanner posts exactly three findings to the Controller (`data` / `iam` / `network`).
+### Run a full pipeline
 
-**2b. Or run delivery directly (no LLM), useful for debugging:**
 ```bash
+# 1 — Scanner: detect and post findings
 uv run python scripts/scan_and_post.py <room_id>
+
+# 2 — Controller, Risk Policy, Data Specialist: start agents in separate terminals
+uv run python agents/controller/controller.py
+uv run python agents/risk/risk.py
+uv run python agents/specialists/data/data_specialist.py
+
+# 3 — Run the Action Layer (it requests human approval in Band, then executes)
+uv run python scripts/run_action.py <room_id> --latest-approved <cls:resource>
+
+# 4 — Verify the audit chain
+uv run python scripts/audit_verify.py <room_id>
+uv run python scripts/audit_verify.py --tamper <room_id>
 ```
 
-**Inspect detection offline (no Band, no model):**
+### Mission Control UI
+
 ```bash
-uv run python -m cloud.scan        # prints the ready-to-send finding messages
+# Terminal 1 — FastAPI read-bridge
+uv run uvicorn ui.api.main:app --reload --port 8000
+
+# Terminal 2 — Next.js frontend
+cd ui/web && npm install && npm run dev
 ```
 
-## Roadmap (built strictly in milestone order — see `docs/CASTELLAN_BUILD_PLAN.md`)
+Open `http://localhost:3000`.
 
-✅ M0 Band pipe · ✅ M1 deterministic Scanner findings · M2 Controller + Data Specialist ·
-**M3 Risk reject→revise loop** · **M4 Action Layer + human gate** · M5 audit chain ·
-M6 IAM/Network specialists + Featherless Evidence Analyst · M7 UI · M8 submission.
+---
+
+## Repository structure
+
+```
+agents/           Agent implementations (Scanner, Controller, Risk, Specialist, Evidence)
+connection/       Band SDK wrappers, tools, and the audit reader
+coordination/     Shared models, board state, hash chain, remediation fixtures
+actions/          Executor, human gate, ledger
+cloud/            LocalStack client, scanner, seeder
+scripts/          CLI runners and audit verifier
+ui/
+  api/            FastAPI read-bridge (zero-logic passthrough)
+  web/            Mission Control — Next.js frontend
+docs/             CASTELLAN_SDK_NOTES.md — authoritative AS-BUILT decisions
+```
+
+---
+
+## Docs
+
+**`docs/CASTELLAN_SDK_NOTES.md`** — the full authoritative AS-BUILT: every transport decision, model choice, and non-obvious gotcha documented as it was discovered.
+
+---
+
+*Band of Agents Hackathon 2026 — Track 3: Regulated & High-Stakes Workflows*

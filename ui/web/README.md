@@ -1,36 +1,47 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Castellan — Mission Control UI
 
-## Getting Started
+The read-only browser interface for Castellan's audit chain and case lifecycle.
 
-First, run the development server:
+## Views
+
+| Route | What it shows |
+|---|---|
+| `/` | Dashboard — one case, end to end, with a live proof card |
+| `/chain` | SHA-256 audit chain — VALID verdict, sealed records, tamper test |
+| `/lifecycle` | Numbered 1–7 record sequence, each expandable to raw sealed JSON |
+| `/reversibility` | Before/after rollback round-trip, byte-for-byte verified |
+
+## Architecture
+
+The frontend never holds Band credentials. A thin **FastAPI read-bridge** (`ui/api/`) proxies all data through the same proven `connection/audit_reader.py` functions used by the CLI auditor — so what you see in the browser is exactly what `audit_verify.py` computes.
+
+## Running
+
+From the **repo root**:
 
 ```bash
+# Start the read-bridge first (port 8000)
+uv run uvicorn ui.api.main:app --reload --port 8000
+
+# Then start the frontend (port 3000)
+cd ui/web
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Stack
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Next.js 16 (App Router) · TypeScript · Tailwind CSS v4 · Turbopack
 
-## Learn More
+## Note on Turbopack cache
 
-To learn more about Next.js, take a look at the following resources:
+If styles fail to load after editing files while the dev server is running, clear the cache and hard-refresh:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+Remove-Item -Recurse -Force .next   # PowerShell (Windows)
+# or
+rm -rf .next                         # bash/zsh
+npm run dev
+```
