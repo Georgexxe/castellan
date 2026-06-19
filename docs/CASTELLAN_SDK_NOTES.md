@@ -240,6 +240,30 @@ The Controller is the most tool-intensive, multi-turn agent, so it's the most ex
 
 The **Action Layer** (`actions/`) and **Auditor** (`audit/`) are plain Python modules, not Band agents. They're invoked by the orchestration backend and the human-gate endpoint. They don't use adapters or platform tools. Keep them framework-free and deterministic.
 
+> **AS BUILT (M6b) — Evidence Analyst (`agents/evidence/`, `connection/evidence_tool.py`,
+> `scripts/run_evidence.py`) — Featherless, additive, read-only:**
+> - **Purely additive.** When @mentioned about a case it posts a plain-language `[evidence_summary]`
+>   (human context before the human approves). It produces NO Contribution, passes NO Risk gate, and
+>   touches NO Action/audit code. **Nothing in the proven spine changed** — no edits to
+>   scanner/controller/risk/data_specialist/action/`coordination/*`.
+> - **Featherless (Qwen-7B) on purpose.** `ChatOpenAI` → Featherless (the proven transport), zero new
+>   deps. A weak 7B is fine here because it only summarizes — it has no gate to pass. **ONE Featherless
+>   call per case.**
+> - **Out of the audit path (three guarantees):** (1) `[evidence_summary]` is not a chained record
+>   type → `classify_records` returns None; (2) `sanitize_summary` strips fenced code/JSON/markers so
+>   the prose can never be misread as a Finding/Contribution/Constraint; (3) it's not in
+>   `audit_verify.py` AGGREGATE_KEYS and is addressed to the human. The `eb4379c9` chain stays
+>   byte-identical (head `9f55f86d…2946919`, VALID).
+> - **Evidence is live, not transcript-derived.** Uses `cloud.describe.cloud_describe` (read-only),
+>   so it needs nothing from Band's scoped context except the case key.
+> - **Trigger = @mention, no Controller change.** Driver `scripts/run_evidence.py <room> <cls:resource>`
+>   (or a human @mention). Fully-automatic case-open activation would require the Controller to
+>   @mention it — deliberately NOT built (manual trigger is cleaner for the demo).
+> - **Fail-closed:** describe error / model hiccup → a clean "summary unavailable", never a partial
+>   or broken post.
+> - **UI:** the dashboard's reserved "Evidence Analyst Summary" card is wired in a later step (a new
+>   read-only bridge endpoint for the latest `[evidence_summary]`); not built yet.
+
 > **AS BUILT (M6) — live Data Specialist (`agents/specialists/data/`, `connection/data_tool.py`,
 > `coordination/remediations.py`):**
 > - **Transport matrix decided this (empirical, not assumed).** Probes: OpenAI-SDK and

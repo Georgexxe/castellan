@@ -25,3 +25,7 @@ action:          # M4 — the Action Layer identity (posts the human-approval re
 data_specialist: # M6 — the live Data Specialist (S3); register "Data Specialist" and add it to the
   agent_id: ""   # room. Runs on Anthropic via LangGraph (ANTHROPIC_API_KEY in .env; model DATA_MODEL).
   api_key: ""    # Replaces the synthetic scripts/post_contribution.py stand-in.
+
+evidence_analyst: # M6b — Featherless read-only summarizer (2nd sponsor basket); register "Evidence
+  agent_id: ""    # Analyst" and add it to the room. Runs on Featherless via ChatOpenAI
+  api_key: ""     # (FEATHERLESS_API_KEY in .env; model FEATHERLESS_MODEL). Additive — out of the audit path.
