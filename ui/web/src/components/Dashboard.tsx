@@ -3,6 +3,7 @@ import {
   shortHash,
   type AuditResponse,
   type CaseOverview,
+  type EvidenceSummary,
   type SummaryResponse,
 } from "@/lib/api";
 
@@ -12,10 +13,12 @@ export function Dashboard({
   summary,
   audit,
   cases,
+  evidence,
 }: {
   summary: SummaryResponse;
   audit: AuditResponse;
   cases: CaseOverview[];
+  evidence: EvidenceSummary | null;
 }) {
   const verdict = summary.verdicts[0] ?? "—";
   const remediated = cases.filter((c) => c.proposal_id).length;
@@ -144,28 +147,53 @@ export function Dashboard({
           </Link>
         </section>
 
-        {/* reserved future card — leave the slot, don't build it */}
-        <section
-          className="flex flex-col rounded border border-dashed border-ink-500 bg-ink-800/40 p-5"
-          aria-label="Reserved: Evidence Analyst Summary"
-        >
-          <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-fg-faint">
-            Reserved · Future
-          </p>
-          <h2 className="mt-2 text-[16px] font-semibold text-fg-muted">
-            Evidence Analyst Summary
-          </h2>
-          <p className="mt-2 text-[12.5px] leading-relaxed text-fg-faint">
-            A plain-language read of the case — what was exposed, what was done,
-            and why it&apos;s safe — generated from the sealed record. Planned,
-            not yet built.
-          </p>
-          <div className="mt-auto pt-4">
-            <span className="inline-block rounded-sm border border-ink-500 px-2 py-1 text-[10px] uppercase tracking-[0.12em] text-fg-faint">
-              Slot held
-            </span>
-          </div>
-        </section>
+        {/* Evidence Analyst Summary — live when a summary exists, else the honest reserved state.
+            Supporting cast: ink panel (NOT bone — human context, not a sealed record), Archivo,
+            no Fraunces, no motion, no vermilion. */}
+        {evidence ? (
+          <section
+            className="flex flex-col rounded border border-ink-600 bg-ink-700 p-5"
+            aria-label="Evidence Analyst Summary"
+          >
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] uppercase tracking-[0.18em] text-fg-faint">
+                Evidence Analyst Summary
+              </p>
+              <span className="font-mono text-[9.5px] uppercase tracking-wider text-fg-faint">
+                Featherless · Qwen-7B
+              </span>
+            </div>
+            <p className="mt-3 text-[13.5px] leading-relaxed text-fg">
+              {evidence.summary}
+            </p>
+            <p className="mt-auto border-t border-ink-600 pt-3 text-[11px] text-fg-faint">
+              {evidence.sender ?? "Evidence Analyst"} · plain-language context for
+              case {evidence.case_id}
+            </p>
+          </section>
+        ) : (
+          <section
+            className="flex flex-col rounded border border-dashed border-ink-500 bg-ink-800/40 p-5"
+            aria-label="Reserved: Evidence Analyst Summary"
+          >
+            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-fg-faint">
+              Reserved · Future
+            </p>
+            <h2 className="mt-2 text-[16px] font-semibold text-fg-muted">
+              Evidence Analyst Summary
+            </h2>
+            <p className="mt-2 text-[12.5px] leading-relaxed text-fg-faint">
+              A plain-language read of the case — what was exposed, what was done,
+              and why it&apos;s safe. Posted by the Evidence Analyst when a case has
+              one; none yet for this room.
+            </p>
+            <div className="mt-auto pt-4">
+              <span className="inline-block rounded-sm border border-ink-500 px-2 py-1 text-[10px] uppercase tracking-[0.12em] text-fg-faint">
+                Slot held
+              </span>
+            </div>
+          </section>
+        )}
       </div>
 
       {/* ---- cases line ---- */}

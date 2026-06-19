@@ -137,6 +137,17 @@ export const getCase = (caseId: string, roomId: string = ROOM_ID) =>
 export const getCloudState = (roomId: string = ROOM_ID) =>
   getJSON<CloudState>(`/rooms/${roomId}/cloud-state`);
 
+export interface EvidenceSummary {
+  case_id: string;
+  summary: string;
+  sender: string | null;
+  inserted_at: string;
+}
+
+// Evidence Analyst's plain-language summary for a case. null when none exists yet.
+export const getEvidence = (caseId: string, roomId: string = ROOM_ID) =>
+  getJSON<EvidenceSummary | null>(`/rooms/${roomId}/evidence/${caseId}`);
+
 // The data case that runs the full lifecycle (acme-public-data).
 export const DATA_CASE_ID = "575e729d";
 

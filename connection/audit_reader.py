@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import copy
 import logging
+import re
 from pathlib import Path
 
 from band.config import load_agent_config
@@ -42,7 +43,14 @@ __all__ = [
     "AGGREGATE_KEYS", "ANCHOR_DIR", "AuditError",
     "aggregate_messages", "anchor_path", "reconstruct",
     "verify_room", "tamper_room", "summarize", "cases_overview", "case_detail", "cloud_state",
+    "latest_evidence_summary",
 ]
+
+# The Evidence Analyst's plain-language post (M6b). Kept as a literal (not imported from
+# connection.evidence_tool) so reading a summary never drags the LLM stack into the auditor/CLI.
+_EVIDENCE_MARKER = "[evidence_summary]"
+_EV_CASE_ID_RE = re.compile(r"\[case_id:([0-9a-f]{8})\]")
+_EV_STRIP_RE = re.compile(r"\[(?:evidence_summary|case|case_id|proposal_id|routed)[^\]]*\]|@\S+")
 
 
 def _g(msg, name):
@@ -261,4 +269,50 @@ def cloud_state(records) -> dict:
         "after_apply": applied.payload.get("state_after") if applied else None,
         "after_rollback": rolled.payload.get("state_after_rollback") if rolled else None,
         "restored_matches_original": rolled.payload.get("restored_matches_original") if rolled else None,
+    }
+
+
+# --- Evidence Analyst summary (M6b) — READ-ONLY, OUTSIDE the audit chain --------------------------
+def _evidence_case_id(content: str) -> str | None:
+    m = _EV_CASE_ID_RE.search(content or "")
+    return m.group(1) if m else None
+
+
+def _evidence_prose(content: str) -> str:
+    """The human-facing prose: the body after the marker line, with any markers/@mentions stripped."""
+    parts = (content or "").split("\n\n", 1)
+    text = parts[1] if len(parts) > 1 else (content or "")
+    text = _EV_STRIP_RE.sub("", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+async def latest_evidence_summary(room_id: str, case_id: str) -> dict | None:
+    """Latest `[evidence_summary]` for a case, for the dashboard card. Pure pass-through: reuses the
+    existing room aggregation plus the analyst's own scoped view (it authored the summary), finds the
+    marked message, and returns its prose. NEVER calls classify/build — the summary is provably not a
+    chained record, so this is entirely outside the audit path. Returns None if no summary exists."""
+    by_id: dict[str, object] = {}
+    for m in await aggregate_messages(room_id):
+        by_id[str(_g(m, "id"))] = m
+    try:  # best-effort: the analyst authored it; include its own view (robust to who it addressed)
+        _id, key = load_agent_config("evidence_analyst")
+        for m in await _fetch_all(key, room_id):
+            by_id[str(_g(m, "id"))] = m
+    except Exception as e:
+        log.warning("evidence_analyst context unavailable for %s: %s", room_id, e)
+
+    hits = [
+        m for m in by_id.values()
+        if _EVIDENCE_MARKER in (_g(m, "content") or "")
+        and _evidence_case_id(_g(m, "content") or "") == case_id
+    ]
+    if not hits:
+        return None
+    latest = max(hits, key=lambda m: str(_g(m, "inserted_at") or ""))
+    content = _g(latest, "content") or ""
+    return {
+        "case_id": case_id,
+        "summary": _evidence_prose(content),
+        "sender": _g(latest, "sender_name"),
+        "inserted_at": str(_g(latest, "inserted_at") or ""),
     }

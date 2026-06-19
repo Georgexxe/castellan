@@ -35,6 +35,7 @@ from connection.audit_reader import (
     cases_overview,
     case_detail,
     cloud_state,
+    latest_evidence_summary,
     reconstruct,
     summarize,
     tamper_room,
@@ -100,3 +101,10 @@ async def get_tamper_demo(room_id: str) -> dict:
 @app.get("/rooms/{room_id}/cloud-state")
 async def get_cloud_state(room_id: str) -> dict:
     return cloud_state(await _records(room_id))
+
+
+@app.get("/rooms/{room_id}/evidence/{case_id}")
+async def get_evidence(room_id: str, case_id: str) -> dict | None:
+    # Read-only, outside the audit chain. Returns null cleanly if no summary exists yet
+    # (the dashboard card then shows its reserved/empty state — not an error).
+    return await latest_evidence_summary(room_id, case_id)
